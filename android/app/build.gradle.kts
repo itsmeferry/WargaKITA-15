@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "id.kebonagung.rt17.wargakita"
+    namespace = "id.kebonagung.rt15.wargakita"
     compileSdk = 35
 
     defaultConfig {
