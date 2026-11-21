@@ -24,7 +24,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Siapkan Keystore & Build APK
+      - name: Siapkan Keystore, Build & Sign APK
         working-directory: android
         run: |
           if [ ! -f app/release.keystore ]; then
@@ -33,19 +33,30 @@ jobs:
           chmod +x gradlew || true
           gradle wrapper --gradle-version 8.7 || true
           chmod +x gradlew
-          ./gradlew assembleRelease || ./gradlew assembleDebug
+          ./gradlew assembleRelease
+
+          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          BUILD_TOOLS=$(ls -d ${ANDROID_HOME}/build-tools/* | sort -V | tail -n 1)
+          mkdir -p dist
+          "$BUILD_TOOLS/zipalign" -v -p 4 "$UNSIGNED_APK" dist/aligned.apk
+          "$BUILD_TOOLS/apksigner" sign --ks app/release.keystore --ks-key-alias wargakita --ks-pass pass:wargakita15 --key-pass pass:wargakita15 --out dist/WargaKITA-15-v1.14.3.apk dist/aligned.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WargaKITA-15-APK
-          path: android/app/build/outputs/apk/**/*.apk
+          name: WargaKITA-15-v1.14.3
+          path: android/dist/WargaKITA-15-v1.14.3.apk
 
       - name: Publikasikan ke GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v-latest-rt15
-          name: WargaKITA 15 Terbaru
-          files: android/app/build/outputs/apk/**/*.apk
+          tag_name: v1.14.3
+          name: WargaKITA 15 v1.14.3
+          body: |
+            Pembaruan aplikasi WargaKITA 15 versi v1.14.3:
+            - Sinkronisasi penuh fitur & tampilan terbaru
+            - Perbaikan manajemen akun pengurus & developer
+            - Peningkatan performa & kestabilan aplikasi
+          files: android/dist/WargaKITA-15-v1.14.3.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
