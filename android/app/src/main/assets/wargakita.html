@@ -7392,18 +7392,25 @@ function bindLoginEvents() {
     let email = document.getElementById("loginEmail").value.trim();
     if (!email.includes("@")) email = `${email}@wargakita.id`;
     state.loading = true; render();
-    const { data, error } = await db.auth.signInWithPassword({ email, password: passInput.value });
-    if (error) { state.loading = false; showToast("Login gagal: " + error.message); render(); return; }
-    const { data: prof, error: pErr } = await db.from("profiles").select("*").eq("id", data.user.id).single();
-    if (pErr || !prof || !prof.is_active) { await db.auth.signOut(); state.loading = false; showToast("Akun tidak aktif."); render(); return; }
-    const meta1 = data.user?.user_metadata || {};
-    const ext1 = getProfileExtra(prof.id);
-    prof.display_name = meta1.display_name || ext1.display_name || prof.display_name;
-    if (meta1.phone || meta1.bio) saveProfileExtra(prof.id, { display_name: prof.display_name, phone: meta1.phone || ext1.phone || "", bio: meta1.bio || ext1.bio || "" });
-    state.session = data.session; state.profile = prof; state.nawakMessages = loadNawakHistory(prof.id); state.nawakMessages = loadNawakHistory(prof.id); state.loading = false;
-    await logUserActivity("Login", "profiles", prof.id, `${prof.display_name} masuk ke aplikasi`);
-    if (prof.must_change_password) { render(); showForceChangePasswordModal(false); return; }
-    await loadAllData(false);
+    try {
+      const { data, error } = await db.auth.signInWithPassword({ email, password: passInput.value });
+      if (error) { state.loading = false; showToast("Login gagal: " + error.message); render(); return; }
+      const { data: prof, error: pErr } = await db.from("profiles").select("*").eq("id", data.user.id).single();
+      if (pErr || !prof || !prof.is_active) { await db.auth.signOut(); state.loading = false; showToast("Akun tidak aktif / profil belum terdaftar."); render(); return; }
+      const meta1 = data.user?.user_metadata || {};
+      const ext1 = getProfileExtra(prof.id);
+      prof.display_name = meta1.display_name || ext1.display_name || prof.display_name;
+      if (meta1.phone || meta1.bio) saveProfileExtra(prof.id, { display_name: prof.display_name, phone: meta1.phone || ext1.phone || "", bio: meta1.bio || ext1.bio || "" });
+      state.session = data.session; state.profile = prof; state.nawakMessages = loadNawakHistory(prof.id); state.loading = false;
+      render();
+      try { await logUserActivity("Login", "profiles", prof.id, `${prof.display_name} masuk ke aplikasi`); } catch (_) {}
+      if (prof.must_change_password) { showForceChangePasswordModal(false); return; }
+      await loadAllData(false);
+    } catch (err) {
+      state.loading = false;
+      showToast("Gagal login: " + (err?.message || "Cek koneksi internet"));
+      render();
+    }
   };
 }
 
