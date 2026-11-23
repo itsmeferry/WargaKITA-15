@@ -1,3 +1,64 @@
+## [1.15.2] — 2026-11-23
+
+### Perbaikan Crash Saat Install Ulang & Peningkatan Export
+- **Perbaikan Crash Startup (`MainActivity.kt`):** Memindahkan pemanggilan `requestInitialPermissions()` ke setelah inisialisasi `webView` serta menambahkan pengaman `evalJsSafe()` (`::webView.isInitialized`) pada seluruh *callback* izin kalender dan `SpeechRecognizer` agar aplikasi tidak pernah mengalami `UninitializedPropertyAccessException` saat baru diinstal ulang.
+- **Export Word `.docx` Asli:** Mengganti format `.doc` HTML dengan generator `.docx` OOXML asli (`buildValidDocxBytes`) agar terbuka mulus di Word, Google Docs, dan WPS Office Android.
+- **Filter Status Warga & Pemisahan Warga Kontrak:** Menambahkan filter status (*Permanen, Kontrak, Kost, Janda, Pindah Domisili, Meninggal Dunia*) pada menu export NawakAI serta memisahkan **Warga Kontrak** ke bagian paling bawah tabel di semua format (**PNG, Excel, `.docx`, PDF**).
+- **Footer PDF Serasi PNG:** Menyamakan footer laporan **PDF** dengan desain **7 kartu KPI berwarna + kotak kesimpulan** milik **PNG**.
+- **Kerapian Agenda Resmi RT:** Menambahkan `whitespace-pre-line` pada daftar nama ronda dan menyembunyikan tombol `Edit`/`Hapus` untuk jadwal ronda bawaan Desember 2026.
+- **Build Android (`v1.15.2`):** Menaikkan `versionCode = 24`, `versionName = "1.15.2"` di `android/app/build.gradle.kts`, `APP_VERSION` di HTML, dan `.github/workflows/build-apk.yml`.
+
+## [1.15.1] — 2026-11-23
+
+### NawakAI Voice Inline ala Gemini & Tombol Henti Paksa (`□`)
+- **Inline `SpeechRecognizer` + Live Waveform 14 Bar (`MainActivity.kt` & `index.html`):** Mengganti popup sistem Google dengan pengenalan suara *in-app* senyap yang mengalirkan level audio (*RMS*) secara langsung ke 14 bar *waveform* ala Gemini di dalam kapsul *chatbox*, lengkap dengan transkrip *real-time* dan eksekusi perintah otomatis.
+- **Tombol Henti Paksa (`□`):** Menambahkan tombol kotak `□` dengan `AbortController` dan pembatalan run aktif (`activeNawakRunId`) di seluruh perintah NawakAI agar pengguna dapat menghentikan paksa proses yang sedang berjalan kapan saja.
+
+### Jadwal Ronda Desember 2026 & Sinkronisasi Kalender HP Otomatis
+- **Jadwal Ronda 1–31 Desember 2026 (`RONDA_DES_2026`):** Memasukkan rolling 7 Regu + 2 personel Kost per malam lengkap dengan daftar nama warga ke Kalender Dashboard & NawakAI.
+- **Notifikasi Harian Jam 19:00 WIB (`RondaReminderReceiver.kt`):** Mengirim pengingat otomatis ke HP Pak RT / Wakil RT / Developer setiap pukul 19:00 WIB selama Desember 2026 dan memasang alarm kalender HP 210 menit sebelum ronda dimulai.
+- **Sinkronisasi Otomatis & Auto-Hapus Selesai Event (`04:00 WIB`):** Menghapus tombol manual `Simpan ke HP`, menyinkronkan kalender HP otomatis saat install, update APK, dan refresh data, serta menghapus otomatis jadwal yang sudah selesai (`DTEND <= nowMs`).
+- **Build Android (`v1.15.1`):** Menaikkan `versionCode = 23`, `versionName = "1.15.1"` di `android/app/build.gradle.kts`, `APP_VERSION` di HTML, dan `.github/workflows/build-apk.yml`.
+
+## [1.15.0] — 2026-11-23
+
+### NawakAI Agent AI (UI Baru, Voice Command & 24 Skill)
+- **Antarmuka Popup Messenger + Chatbox Gemini (Flat UI):**
+  - Popup mengambang dengan animasi *spring* GPU 60fps bebas kedip, ikon wajik NawakAI 6 ekspresi dinamis di puncak kartu, layar Beranda grid 2×2 (*Ringkasan Kas*, *Cek Tunggakan*, *Data Janda*, *Export Warga*), dan grid kolom export 2 kolom yang rapi.
+- **Voice Command Native Android & Web (`id-ID`):**
+  - Menambahkan `RecognizerIntent` (`startVoiceInput()`) serta `onPermissionRequest` di `MainActivity.kt` dan izin `RECORD_AUDIO` di `AndroidManifest.xml`, dilengkapi animasi *equalizer* datar saat mendengarkan perintah suara.
+- **24 Skill Agentic di 6 Domain Operasional:**
+  - *Multi-turn working memory* (revisi draft otomatis), audit klasifikasi KK & kebersihan data NIK/HP, catat pembayaran via suara/chat, simulasi proyeksi saldo kas (*what-if*), audit transaksi *pending*, generator draft pengumuman WA detail (Laporan Kas lengkap Pemasukan & Pengeluaran, Acara, Tahlil Rutinan, Berita Duka/Lelayu, Kerja Bakti), pembuat draf Surat Pengantar RT 15 otomatis, pengingat WA personal santun, jadwal ronda, tambah agenda kalender, log aduan warga, dan paket laporan rapat RT.
+
+### Perbaikan Klasifikasi Janda, Iuran Tahunan & Tunggakan
+- **Kepala Keluarga Efektif (`getEffectiveHeadMember`):** Otomatis memprioritaskan nama **Istri aktif** di Data KK, Detail KK, Cash RT, NawakAI, dan Export Warga apabila Kepala Keluarga sebelumnya berstatus *Meninggal Dunia*.
+- **Deduplikasi Tagihan Tahunan:** Memastikan 1 tahun kalender hanya menghitung maksimal 1 tagihan per kategori dan badge **Tunggakan** hanya tampil untuk piutang lintas tahun (`>= 2` tahun berbeda seperti `2025 & 2026`).
+- **Build Android (`v1.15.0`):** Menaikkan `versionCode = 22`, `versionName = "1.15.0"` di `android/app/build.gradle.kts`, `APP_VERSION` di HTML, dan `.github/workflows/build-apk.yml`.
+
+## [1.14.4] — 2026-11-22
+
+### ✨ Ditambahkan (New Features)
+- **Checkbox Kolom & Export PNG Multi-Halaman (NawakAI):** Pengguna dapat mencentang kolom tertentu (`No / Anggota`, `Alamat`, `Nomor KK`, `NIK`, `Hubungan`, `No. HP`, `Status`) sebelum export ke PNG, Excel, Word, atau PDF. Format PNG otomatis dipecah menjadi beberapa gambar (maks. 28 baris/halaman) agar tetap tajam dan mudah dibaca.
+- **Auto-Simpan ke Storage HP & Share Instan (`MainActivity.kt`):** File hasil export otomatis tersimpan ke folder `Download/WargaKITA` (Excel, Word, PDF) atau `Pictures/WargaKITA` (PNG) lalu langsung membuka dialog Bagikan (Share) perangkat Android.
+- **QRIS Khusus per Akun Petugas:** Tampilan QRIS dan penyimpanan gambar QRIS (`wk_custom_qris_img_<user_id>`) dipisahkan per akun login sehingga tiap petugas Bendahara hanya menampilkan QRIS atas namanya sendiri.
+- **Auto-Remove Agenda (+2 Menit) & Sinkron Kalender HP:** Agenda manual yang melewati waktu jadwalnya + 2 menit otomatis terhapus dari aplikasi, database `community_events`, dan Kalender HP (`CalendarContract`), serta otomatis menyinkronkan agenda dan ulang tahun warga ke Kalender HP.
+- **Validasi Wajib Bukti Pembayaran:** Tombol **Simpan Pembayaran** kini mewajibkan lampiran foto bukti pembayaran warga (Galeri / Foto Langsung) dengan penyorotan kotak merah dan pesan peringatan jika belum dilampirkan.
+- **Dukungan Android Lawas (`minSdk = 23`):** Menurunkan batas minimum Android dari API 26 (8.0) ke **API 23 (Android 6.0 Marshmallow)** disertai akselerasi hardware WebView (`LAYER_TYPE_HARDWARE`).
+- **Migrasi RLS Wakil RT (`supabase/006_wakil_rt_approval_rls.sql`):** Memberikan izin RLS penuh bagi role `wakil_rt` untuk menyetujui/menolak transaksi kas dan melihat pembayaran serta log audit seperti `pak_rt`.
+
+### 🔄 Diperbarui (Improvements & UI/UX)
+- **Animasi Loader Wajah NawakAI:** Menghapus border melingkar dan menghadirkan animasi putaran `360°`, pantulan, mata melirik/berkedip, dan gerak mulut ekspresif saat NawakAI berpikir.
+- **NawakAI Lebih Cepat & Cerdas:** Cache sinkronisasi database 60 detik, penangan lokal instan untuk query data RT (kas, tunggakan, pending, warga meninggal, tanpa tagihan, gender, tanpa NIK/HP, dan pencarian nama/NIK), serta timeout API 10 detik.
+- **Desain Flat UI Modal Persetujuan & Pending Pill:** Pembaruan kartu `.wk-approval-card` dan lencana `.wk-pending-pill` dengan kontras tinggi di Dark Mode dan Light Mode.
+- **Label Pembayaran & Persetujuan:** Memperbarui teks opsi menjadi `QRIS - DANA, Shopee, Gopay`, `Transfer ke Rekening Bank`, dan `Tunai / Cash`, serta menghapus kata *Developer* pada pesan persetujuan menjadi `Menunggu persetujuan Pak RT & Wakil RT`.
+- **Frekuensi Reminder Ulang Tahun Warga:** Dibatasi tepat 2x saja (H-1 sebelum hari H dan 1 jam sebelum hari H pukul 07:00 WIB).
+- **Tata Letak Export Data Warga:** Kolom `Alamat` diperlebar dengan *word-wrap* 2 baris agar tidak menabrak `Nomor KK`, serta `Nomor KK` hanya ditampilkan pada baris Kepala Keluarga.
+
+### 🐛 Diperbaiki (Bug Fixes)
+- **Perbaikan Layar Berkedip Saat Pencarian:** Kolom pencarian di **Data Warga** dan **Data KK** kini hanya memperbarui daftar kartu secara parsial tanpa me-render ulang seluruh halaman.
+- **Sinkronisasi Status Pindah Domisili Keluarga:** Status *Pindah Domisili* pada Kepala Keluarga otomatis menurun ke seluruh anggota keluarga non-meninggal baik di laporan/export maupun saat disimpan ke database.
+- **Akurasi Pencocokan Intent NawakAI:** Menggunakan pencocokan batas kata (*word-boundary*) agar pertanyaan tidak lagi salah rute akibat kemiripan substring.
+
 # Changelog — WargaKITA (RT 15 / RW 03 Kebonagung)
 
 Seluruh riwayat penambahan fitur, pembaruan antarmuka, dan perbaikan *bug* pada aplikasi **WargaKITA** diklasifikasikan secara terperinci pada dokumen ini.

@@ -1,6 +1,6 @@
 # WargaKITA — Aplikasi Administrasi & Keuangan RT 15 / RW 03 Kebonagung
 
-**WargaKITA** (`v1.14.3`) adalah aplikasi **Android & Web** bergaya **Flat UI** untuk pengelolaan data kependudukan, iuran bulanan warga, kas RT, agenda kegiatan, asisten AI **NawakAI**, dan pelaporan keuangan **RT 15 / RW 03 Kebonagung, Pakisaji, Malang**, terintegrasi secara *real-time* dengan **Supabase** (Auth, PostgreSQL + RLS, Storage, dan Edge Functions).
+**WargaKITA** (`v1.15.2`) adalah aplikasi **Android & Web** bergaya **Flat UI** untuk pengelolaan data kependudukan, iuran bulanan warga, kas RT, agenda kegiatan, asisten AI **NawakAI**, dan pelaporan keuangan **RT 15 / RW 03 Kebonagung, Pakisaji, Malang**, terintegrasi secara *real-time* dengan **Supabase** (Auth, PostgreSQL + RLS, Storage, dan Edge Functions).
 
 ---
 
@@ -91,7 +91,7 @@ Tab **Data Warga** mengelola seluruh direktori penduduk RT 15 secara terpusat da
 Tab **Data KK & Iuran** berfokus pada pemantauan status iuran bulanan setiap Kepala Keluarga (diurutkan alfabetis A–Z) serta pencatatan pembayarannya:
 
 - **Pemantau Status Iuran Bulanan & Filter Warna:** Dilengkapi pemilih bulan/tahun, pencarian Kepala Keluarga/No. KK, dan filter cepat: **Hijau** (*Lunas*), **Kuning** (*Sebagian*), **Merah** (*Belum Bayar*), dan **Tanpa Tagihan** (*Pindah Domisili* maupun **`MENINGGAL DUNIA`** dengan lencana `.wk-badge-deceased` yang kontras di mode Terang & Gelap).
-- **Halaman Detail KK & Kontak Langsung:** Menampilkan nomor KK, status tinggal, alamat tersinkronisasi, daftar seluruh anggota keluarga beserta status masing-masing (*Kepala Keluarga*, *Istri*, *Pindah Domisili*, atau *Meninggal Dunia*), rincian 4 kategori iuran (`Rukem + Juri Kunci`, `17 Agustus`, `Keuangan Social`, `Pembangunan + Voging`), serta tombol **Telepon (`tel:`)** dan **WhatsApp (`wa.me`)** satu ketuk.
+- **Halaman Detail KK & Kontak Langsung:** Menampilkan nomor KK, status tinggal, alamat tersinkronisasi, daftar seluruh anggota keluarga beserta status masing-masing (*Kepala Keluarga*, *Istri*, *Pindah Domisili*, atau *Meninggal Dunia*), rincian 4 kategori iuran (`Rukem + Juru Kunci`, `17 Agustus`, `Keuangan Social`, `Pembangunan + Fogging`), serta tombol **Telepon (`tel:`)** dan **WhatsApp (`wa.me`)** satu ketuk.
 - **Catat Pembayaran Iuran, QRIS Layar Penuh & Tugas Bendahara:** Mendukung bayar **Semua Kategori sekaligus** atau per kategori, metode **QRIS**, **Transfer Bank**, dan **Tunai**, serta unggah bukti foto dari Galeri/Kamera ke Supabase Storage. Memilih **QRIS** langsung membuka layar penuh ala perbankan untuk **DANA `085607686867` a.n. `FIBRIONO`** dan otomatis menaikkan kecerahan layar HP Android ke 100% (`setMaxScreenBrightness`). Khusus 4 akun Bendahara RT, kategori & nama petugas otomatis terisi dan terkunci sesuai tugas masing-masing.
 
 ---
@@ -163,20 +163,29 @@ Khusus akun `developer@wargakita.id`, tersedia **Panel Khusus Developer** berdes
 | Role Database | Email Contoh | Lihat Warga | Tambah Warga | Edit / Hapus Warga | Catat Bayar & Kas | Approval Kas | Kalender & Saldo Awal | Baca & Rangkum File NawakAI | Aksi DB NawakAI | Panel Developer |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Developer Admin** | `developer@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Ya |
-| **Pak RT** | `pakrt17@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Tidak |
-| **Wakil RT** | `wakilrt17@wargakita.id` | Ya | Ya | Hapus saja | Tidak | Ya | Kalender saja | Ya | Ya | Tidak |
-| **Bendahara RT** | `bendahara17@wargakita.id`, `novan@wargakita.id`, `ahmadabin@wargakita.id`, `teguh@wargakita.id`, `jodik@wargakita.id` | Ya | Tidak | Tidak | Ya (Pending Approval) | Tidak | Tidak | Ya | Tidak | Tidak |
-| **Sekretaris RT** | `sekretaris17@wargakita.id` | Ya | Ya | Tidak | Tidak | Tidak | Tidak | Ya | Tidak | Tidak |
+| **Pak RT** | `ketua@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Tidak |
+| **Wakil RT** | `wakil@wargakita.id` | Ya | Ya | Hapus saja | Tidak | Ya | Kalender saja | Ya | Ya | Tidak |
+| **Bendahara RT** | `bendahara@wargakita.id`, `developer@wargakita.id`, `ahmadabin@wargakita.id`, `teguh@wargakita.id`, `jodik@wargakita.id` | Ya | Tidak | Tidak | Ya (Pending Approval) | Tidak | Tidak | Ya | Tidak | Tidak |
+| **Sekretaris RT** | `sekretaris@wargakita.id` | Ya | Ya | Tidak | Tidak | Tidak | Tidak | Ya | Tidak | Tidak |
 
-*(Catatan: Mulai `v1.14.3`, seluruh hak akses di atas dapat dikustomisasi per akun oleh **Developer Admin** melalui 10 centang `custom_permissions` di menu **Kelola User Login**).*
+*(Catatan: Mulai `v1.15.2`, seluruh hak akses di atas dapat dikustomisasi per akun oleh **Developer Admin** melalui 10 centang `custom_permissions` di menu **Kelola User Login**).*
 
 ### Arsitektur Teknis
 1. **Autentikasi & RLS:** Login melalui Supabase Auth (dilengkapi tombol mata intip sandi & wajib ganti sandi pada login awal) serta proteksi **Row Level Security (RLS)** di seluruh tabel PostgreSQL.
 2. **Penyimpanan Bukti Terstruktur:** Foto bukti diunggah ke Supabase Storage bucket `receipts` dengan jalur `TAHUN/BULAN/PEMASUKKAN|PENGELUARAN/`.
 3. **Asisten AI Hibrida:** Supabase Edge Function `nawak-ai` + *silent fallback* mesin lokal + OCR lokal (`Tesseract.js`, `PDF.js`, `Mammoth.js`, `SheetJS`) + 7 audio ElevenLabs MP3 *offline*.
-4. **Build & Rilis APK Otomatis:** GitHub Actions (`.github/workflows/build-apk.yml`) membangun APK Android (`versionCode = 20`, `versionName = "1.14.3"`), menandatanganinya dengan *keystore* permanen dari GitHub Secrets, dan merilisnya ke **GitHub Releases**.
+4. **Build & Rilis APK Otomatis:** GitHub Actions (`.github/workflows/build-apk.yml`) membangun APK Android (`versionCode = 24`, `versionName = "1.15.2"`), menandatanganinya dengan *keystore* permanen dari GitHub Secrets, dan merilisnya ke **GitHub Releases**.
 
 ---
 
 ## Riwayat Perubahan
 Lihat rincian lengkap pembaruan, peningkatan UI/UX, dan perbaikan bug per versi pada [CHANGELOG.md](CHANGELOG.md).
+
+### Pembaruan Utama v1.15.2 (NawakAI Agent AI & Iuran Tahunan RT 15)
+- **NawakAI Agent AI (24 Skill di 6 Domain):**
+  - *Tampilan Baru Flat UI*: Popup mengambang ala Messenger dengan ikon wajik 6 ekspresi NawakAI, layar Beranda grid 2×2, *chatbox* kapsul ala Gemini, animasi *spring* Android 60fps, dan *Voice Command* (*Speech-to-Text* `id-ID` native Android & Web).
+  - *Kecerdasan Agen*: Memori revisi *multi-turn*, audit klasifikasi & kebersihan data NIK/KK, catat pembayaran via chat/suara, simulasi proyeksi kas (*what-if*), generator surat pengantar RT 15 otomatis, pengingat tagihan WA santun, jadwal ronda, agenda kalender, log aduan warga, dan paket laporan rapat RT.
+- **Klasifikasi Iuran Tahunan RT 15 (`Rp 138.000/thn`):**
+  - **Point 1 (Wajib Penuh):** 4 kategori (*17 Agustus Rp 30rb, Keuangan Social Rp 30rb, Pembangunan + Fogging Rp 36rb, Rukem + Juru Kunci Rp 42rb*), termasuk kasus khusus `SRI ROKHANI`.
+  - **Point 2 (Janda):** Hanya wajib *Rukem + Juru Kunci* (`Rp 42.000/thn`), otomatis menampilkan nama istri aktif jika kepala keluarga meninggal dunia.
+  - **Point 3 (Kost) & Point 4 (Nonaktif):** Bebas tagihan, dengan deduplikasi tagihan tahunan (`1 tahun = 1 tagihan`) serta pelacakan tunggakan lintas tahun (`2025 & 2026`).
