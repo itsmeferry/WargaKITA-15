@@ -3,6 +3,7 @@ name: Build WargaKITA APK
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 permissions:
@@ -11,9 +12,30 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Siapkan Sumber Android
+        run: |
+          rm -rf extracted_repo
+          LATEST_ZIP=$(ls -t WargaKITA_GitHub_Backup*.zip 2>/dev/null | head -n1 || true)
+          if [ -n "$LATEST_ZIP" ] && [ -f "$LATEST_ZIP" ]; then
+            unzip -oq "$LATEST_ZIP" -d extracted_repo
+          elif [ -f "android/app/build.gradle.kts" ]; then
+            mkdir -p extracted_repo
+            cp -r android extracted_repo/android
+          else
+            echo "Folder android/ atau file WargaKITA_GitHub_Backup*.zip tidak ditemukan."
+            exit 1
+          fi
+          cat << 'PROPS' > extracted_repo/android/gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=true
+          kotlin.code.style=official
+          PROPS
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -21,42 +43,57 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Install Android SDK 35
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Siapkan Keystore, Build & Sign APK
-        working-directory: android
+      - name: Siapkan Keystore & Build APK
+        working-directory: extracted_repo/android
+        env:
+          WK_KEYSTORE_B64: ${{ secrets.WK_KEYSTORE_BASE64 }}
+          WK_KEYSTORE_PASS: ${{ secrets.WK_KEYSTORE_PASS }}
+          WK_KEY_ALIAS: ${{ secrets.WK_KEY_ALIAS || secrets.WK_KEYSTORE_ALIAS }}
+          WK_KEY_PASS: ${{ secrets.WK_KEY_PASS || secrets.WK_KEYSTORE_PASS }}
         run: |
-          if [ ! -f app/release.keystore ]; then
-            keytool -genkey -v -keystore app/release.keystore -alias wargakita -keyalg RSA -keysize 2048 -validity 10000 -storepass wargakita15 -keypass wargakita15 -dname "CN=WargaKITA 15, OU=RT 15, O=Kebonagung, L=Malang, S=Jawa Timur, C=ID"
+          if [ -n "$WK_KEYSTORE_B64" ]; then
+            echo "$WK_KEYSTORE_B64" | base64 -d > release.keystore
+            export WK_KEYSTORE_PATH="$(pwd)/release.keystore"
+            if [ -z "$WK_KEY_ALIAS" ]; then
+              WK_KEY_ALIAS=$(keytool -list -keystore release.keystore -storepass "$WK_KEYSTORE_PASS" 2>/dev/null | grep -i "Alias name:" | head -n1 | sed 's/.*Alias name:[[:space:]]*//I' | tr -d '\r' || true)
+              export WK_KEY_ALIAS
+            fi
+            gradle assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk ../../WargaKITA-RT17-v1.15.2.apk
+          else
+            gradle assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk ../../WargaKITA-RT17-v1.15.2.apk
           fi
-          chmod +x gradlew || true
-          gradle wrapper --gradle-version 8.7 || true
-          chmod +x gradlew
-          ./gradlew assembleRelease
-
-          UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
-          BUILD_TOOLS=$(ls -d ${ANDROID_HOME}/build-tools/* | sort -V | tail -n 1)
-          mkdir -p dist
-          "$BUILD_TOOLS/zipalign" -v -p 4 "$UNSIGNED_APK" dist/aligned.apk
-          "$BUILD_TOOLS/apksigner" sign --ks app/release.keystore --ks-key-alias wargakita --ks-pass pass:wargakita15 --key-pass pass:wargakita15 --out dist/WargaKITA-15-v1.15.2.apk dist/aligned.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WargaKITA-15-v1.15.2
-          path: android/dist/WargaKITA-15-v1.15.2.apk
+          name: WargaKITA-v1.15.2-apk
+          path: WargaKITA-RT17-v1.15.2.apk
 
       - name: Publikasikan ke GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.15.2
-          name: WargaKITA 15 v1.15.2
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.15.2' }}
+          name: WargaKITA RT 17 (v1.15.2)
+          files: WargaKITA-RT17-v1.15.2.apk
+          make_latest: true
           body: |
-            Pembaruan aplikasi WargaKITA 15 versi v1.15.2:
-            - Sinkronisasi penuh fitur & tampilan terbaru
-            - Perbaikan manajemen akun pengurus & developer
-            - Peningkatan performa & kestabilan aplikasi
-          files: android/dist/WargaKITA-15-v1.15.2.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            ## Pembaruan WargaKITA v1.15.2 (versionCode 24)
+            ### NawakAI Agent AI & Voice Command
+            - **UI Baru Flat UI (Popup Messenger + Chatbox Gemini):** Popup mengambang bebas kedip dengan animasi spring Android 60fps, ikon wajik 6 ekspresi NawakAI, layar Beranda grid 2×2, dan grid kolom export 2 kolom.
+            - **Voice Command Native Android & Web (`id-ID`):** Voice inline ala Gemini (`SpeechRecognizer` senyap + 14-bar live RMS waveform tanpa popup Google), dilengkapi tombol Henti Paksa (`□`), jadwal Ronda Desember 2026 lengkap dengan reminder harian 19:00 WIB ke Pak RT, serta sinkronisasi & auto-hapus kalender HP otomatis.
+            - **24 Skill Agentic (6 Domain):** Memori revisi multi-turn, audit klasifikasi & kebersihan data, catat pembayaran via chat/suara, simulasi proyeksi kas, generator pengumuman WA & surat pengantar RT 17 otomatis, jadwal ronda, agenda kalender, log aduan warga, dan paket laporan rapat RT.
+            ### Perbaikan Data & Iuran Tahunan RT 17
+            - **Kepala Keluarga Efektif (Data Janda):** Otomatis menampilkan nama istri aktif di Data KK, Detail KK, Cash RT, NawakAI, dan Export Warga apabila kepala keluarga meninggal dunia.
+            - **Deduplikasi Tagihan Tahunan:** 1 tahun kalender dihitung maksimal 1 tagihan per kategori dan badge Tunggakan hanya tampil untuk piutang lintas tahun (`2025 & 2026`).
