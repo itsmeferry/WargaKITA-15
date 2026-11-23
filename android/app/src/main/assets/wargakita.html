@@ -1861,7 +1861,7 @@ function renderCalendarWidget() {
         <div class="flex items-center gap-1.5">
           <button id="calPrevBtn" type="button" class="w-7 h-7 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50">&lsaquo;</button>
           <button id="calNextBtn" type="button" class="w-7 h-7 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50">&rsaquo;</button>
-          ${(perms.canEditCalendar && !ev._isRonda) ? `<button id="openAddEventBtn" type="button" class="h-7 px-2.5 rounded-lg btn-accent text-[11px] font-semibold">+ Kegiatan</button>` : ''}
+          ${(perms.canEditCalendar) ? `<button id="openAddEventBtn" type="button" class="h-7 px-2.5 rounded-lg btn-accent text-[11px] font-semibold">+ Kegiatan</button>` : ''}
         </div>
       </div>
 
@@ -2963,7 +2963,7 @@ function syncEventToPhoneCalendar(ev) {
   const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `Kegiatan_RT17_${ev.event_date}.ics`;
+  a.download = `Kegiatan_RT15_${ev.event_date}.ics`;
   a.click();
   showToast("File kalender (.ics) diunduh.");
 }
