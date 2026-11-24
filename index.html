@@ -3158,7 +3158,7 @@ function syncEventToPhoneCalendar(ev) {
   const pad = n => String(n).padStart(2, "0");
   const fmtIcs = d => `${d.getUTCFullYear()}${pad(d.getUTCMonth()+1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}00Z`;
   const ics = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//WargaKITA//RT17//ID",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//WargaKITA//RT15//ID",
     "BEGIN:VEVENT",
     `DTSTART:${fmtIcs(new Date(startMs))}`,
     `DTEND:${fmtIcs(new Date(endMs))}`,
@@ -3579,7 +3579,7 @@ function generateNawakAIReply(query) {
 
   // [Skill 12] Pembuat Draf Surat Pengantar Resmi RT 15
   if (/\b(surat\s+pengantar|surat\s+domisili|sktm|surat\s+keterangan|buatkan\s+surat)\b/i.test(q)) {
-    const cleanTarget = q.replace(/buatkan|draf|draft|surat|pengantar|domisili|keterangan|sktm|untuk|atas nama|warga|rt 17/gi, " ").trim();
+    const cleanTarget = q.replace(/buatkan|draf|draft|surat|pengantar|domisili|keterangan|sktm|untuk|atas nama|warga|rt 15/gi, " ").trim();
     const resMatch = cleanTarget ? state.residents.find(r => fuzzyMatchResidentScore(cleanTarget, r.full_name) >= 70) : null;
     const hhMatch = resMatch ? state.households.find(h => h.id === resMatch.household_id) : null;
     const jenis = /sktm|tidak mampu/i.test(q) ? "Surat Keterangan Tidak Mampu (SKTM)" : (/domisili/i.test(q) ? "Surat Keterangan Domisili" : (/usaha/i.test(q) ? "Surat Keterangan Usaha" : "Surat Pengantar Administrasi Kependudukan"));
@@ -4411,7 +4411,7 @@ function showBirthdayCardModal(preselectResidentId) {
   document.getElementById("shareBdayImgBtn").onclick = async () => {
     const dataUrl = cvs.toDataURL("image/png");
     const r = heads.find(x => x.id === selEl.value);
-    const fname = `Kartu_Ultah_${sanitizeFilePart(r ? r.full_name : "Warga_RT17")}.png`;
+    const fname = `Kartu_Ultah_${sanitizeFilePart(r ? r.full_name : "Warga_RT15")}.png`;
     if (window.AndroidBridge && typeof window.AndroidBridge.saveAndShareBase64 === "function") {
       window.AndroidBridge.saveAndShareBase64(dataUrl.split(",")[1], fname, "image/png");
       return;
@@ -4732,14 +4732,14 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
     XLSX.utils.book_append_sheet(wb, ws, "Data Warga RT 15");
     if (window.AndroidBridge && window.AndroidBridge.saveAndShareBase64) {
       const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT17_Kebonagung.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT15_Kebonagung.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       return;
     }
     const ab = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([ab], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "Data_Warga_RT17_Kebonagung.xlsx"; a.click();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "Data_Warga_RT15_Kebonagung.xlsx"; a.click();
     showToast("Data warga (Excel) diunduh.");
-    await triggerWebShareFallback([new File([blob], "Data_Warga_RT17_Kebonagung.xlsx", { type: blob.type })], "Data Warga RT 15");
+    await triggerWebShareFallback([new File([blob], "Data_Warga_RT15_Kebonagung.xlsx", { type: blob.type })], "Data Warga RT 15");
     return;
   }
 
@@ -4757,12 +4757,12 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
     if (window.AndroidBridge && typeof window.AndroidBridge.saveAndShareBase64 === "function") {
       let bin = "";
       for (let i = 0; i < docxBytes.length; i++) bin += String.fromCharCode(docxBytes[i]);
-      window.AndroidBridge.saveAndShareBase64(btoa(bin), "Data_Warga_RT17_Kebonagung.docx", docxMime);
+      window.AndroidBridge.saveAndShareBase64(btoa(bin), "Data_Warga_RT15_Kebonagung.docx", docxMime);
       return;
     }
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "Data_Warga_RT17_Kebonagung.docx"; a.click();
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "Data_Warga_RT15_Kebonagung.docx"; a.click();
     showToast("Data warga (Word .docx) diunduh.");
-    await triggerWebShareFallback([new File([blob], "Data_Warga_RT17_Kebonagung.docx", { type: docxMime })], "Data Warga RT 15");
+    await triggerWebShareFallback([new File([blob], "Data_Warga_RT15_Kebonagung.docx", { type: docxMime })], "Data Warga RT 15");
     return;
   }
 
@@ -4846,13 +4846,13 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
 
     const b64 = doc.output("datauristring").split(",")[1];
     if (window.AndroidBridge && typeof window.AndroidBridge.saveAndShareBase64 === "function") {
-      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT17_Kebonagung.pdf", "application/pdf");
+      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT15_Kebonagung.pdf", "application/pdf");
       return;
     }
     const blob = doc.output("blob");
-    doc.save("Data_Warga_RT17_Kebonagung.pdf");
+    doc.save("Data_Warga_RT15_Kebonagung.pdf");
     showToast("Data warga (PDF) diunduh.");
-    await triggerWebShareFallback([new File([blob], "Data_Warga_RT17_Kebonagung.pdf", { type: "application/pdf" })], "Data Warga RT 15");
+    await triggerWebShareFallback([new File([blob], "Data_Warga_RT15_Kebonagung.pdf", { type: "application/pdf" })], "Data Warga RT 15");
     return;
   }
 
@@ -4991,7 +4991,7 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
       }
 
       const dataUrl = cvs.toDataURL("image/png");
-      const fname = totalPages > 1 ? `Data_Warga_RT17_Hal_${pIdx + 1}_dari_${totalPages}.png` : "Data_Warga_RT17_Kebonagung.png";
+      const fname = totalPages > 1 ? `Data_Warga_RT15_Hal_${pIdx + 1}_dari_${totalPages}.png` : "Data_Warga_RT15_Kebonagung.png";
       filesPayload.push({ name: fname, base64: dataUrl.split(",")[1], dataUrl });
     }
 
@@ -7571,18 +7571,18 @@ const OFFICER_LIST = [
   "Ahmad Abin",
   "Jodik Purwanto",
   "Novan Hermawan",
-  "Fibriono (Ketua RT17)",
-  "Agung Setyabudi (Wakil RT17)",
-  "Ferry Surya Windy (Sekretaris RT17)"
+  "Fibriono (Ketua RT15)",
+  "Agung Setyabudi (Wakil RT15)",
+  "Ferry Surya Windy (Sekretaris RT15)"
 ];
 
 function getDefaultOfficerForLogin() {
   const role = state.profile?.role || "";
   const nm = String(state.profile?.display_name || "").toLowerCase();
   const em = String(state.session?.user?.email || "").toLowerCase();
-  if (role === "pak_rt" || nm.includes("fibriono") || em.includes("pak_rt") || em.includes("pakrt")) return "Fibriono (Ketua RT17)";
-  if (role === "wakil_rt" || nm.includes("agung") || em.includes("wakil")) return "Agung Setyabudi (Wakil RT17)";
-  if (role === "sekretaris_rt" || nm.includes("ferry") || em.includes("sekretaris")) return "Ferry Surya Windy (Sekretaris RT17)";
+  if (role === "pak_rt" || nm.includes("fibriono") || em.includes("pak_rt") || em.includes("pakrt")) return "Fibriono (Ketua RT15)";
+  if (role === "wakil_rt" || nm.includes("agung") || em.includes("wakil")) return "Agung Setyabudi (Wakil RT15)";
+  if (role === "sekretaris_rt" || nm.includes("ferry") || em.includes("sekretaris")) return "Ferry Surya Windy (Sekretaris RT15)";
   if (nm.includes("teguh") || em.includes("teguh")) return "A. Teguh Purwanto";
   if (nm.includes("abin") || em.includes("abin")) return "Ahmad Abin";
   if (nm.includes("jodik") || em.includes("jodik")) return "Jodik Purwanto";
@@ -7813,7 +7813,7 @@ function showShareReportModal() {
     }
     ctx.fillStyle = "#94a3b8"; ctx.font = "14px Inter, sans-serif";
     ctx.fillText(`Dicetak oleh WargaKITA • Halaman 1 dari ${totalPages}`, 48, page1H - 28);
-    blobs.push({ name: `Laporan_Keuangan_RT17_Hal_1.png`, blob: await new Promise(r => c1.toBlob(r, "image/png")) });
+    blobs.push({ name: `Laporan_Keuangan_RT15_Hal_1.png`, blob: await new Promise(r => c1.toBlob(r, "image/png")) });
 
     for (let p = 0; p < unpaidPagesCount; p++) {
       const slice = unpaidList.slice(p * kkPerPage, (p + 1) * kkPerPage);
@@ -7842,7 +7842,7 @@ function showShareReportModal() {
       });
       pctx.fillStyle = "#94a3b8"; pctx.font = "14px Inter, sans-serif";
       pctx.fillText(`WargaKITA RT 15 Kebonagung • Halaman ${pgNum} dari ${totalPages}`, 48, pgH - 24);
-      blobs.push({ name: `Laporan_Keuangan_RT17_Hal_${pgNum}.png`, blob: await new Promise(r => cp.toBlob(r, "image/png")) });
+      blobs.push({ name: `Laporan_Keuangan_RT15_Hal_${pgNum}.png`, blob: await new Promise(r => cp.toBlob(r, "image/png")) });
     }
 
     const files = blobs.map(b => new File([b.blob], b.name, { type: "image/png" }));
@@ -8280,15 +8280,15 @@ function bindScreenEvents() {
     const blob = doc.output("blob");
     if (window.AndroidBridge && window.AndroidBridge.saveAndShareBase64) {
       const reader = new FileReader();
-      reader.onloadend = () => window.AndroidBridge.saveAndShareBase64(String(reader.result).split(",")[1], "Laporan_Keuangan_RT17.pdf", "application/pdf");
+      reader.onloadend = () => window.AndroidBridge.saveAndShareBase64(String(reader.result).split(",")[1], "Laporan_Keuangan_RT15.pdf", "application/pdf");
       reader.readAsDataURL(blob);
       return;
     }
-    const file = new File([blob], "Laporan_Keuangan_RT17.pdf", { type: "application/pdf" });
+    const file = new File([blob], "Laporan_Keuangan_RT15.pdf", { type: "application/pdf" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: "Laporan Keuangan RT 15" }); showToast("Laporan PDF dibagikan."); return; } catch (_) {}
     }
-    doc.save("Laporan_Keuangan_RT17.pdf");
+    doc.save("Laporan_Keuangan_RT15.pdf");
     showToast("Laporan PDF berhasil diunduh.");
   };
 
@@ -8363,10 +8363,10 @@ function bindScreenEvents() {
     XLSX.utils.book_append_sheet(wb, wsGuide, "Panduan_Input");
     if (window.AndroidBridge && typeof window.AndroidBridge.saveAndShareBase64 === "function") {
       const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-      window.AndroidBridge.saveAndShareBase64(b64, "Template_Import_Warga_RT17.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      window.AndroidBridge.saveAndShareBase64(b64, "Template_Import_Warga_RT15.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       return;
     }
-    XLSX.writeFile(wb, "Template_Import_Warga_RT17.xlsx");
+    XLSX.writeFile(wb, "Template_Import_Warga_RT15.xlsx");
     showToast("Template Excel berhasil diunduh.");
   };
   const impInput = document.getElementById("importWargaFileInput");
@@ -8460,10 +8460,10 @@ function bindScreenEvents() {
     XLSX.utils.book_append_sheet(wb, ws, "Data Warga RT 15");
     if (window.AndroidBridge && window.AndroidBridge.saveAndShareBase64) {
       const b64 = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT17_Kebonagung.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      window.AndroidBridge.saveAndShareBase64(b64, "Data_Warga_RT15_Kebonagung.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       return;
     }
-    XLSX.writeFile(wb, "Data_Warga_RT17_Kebonagung.xlsx");
+    XLSX.writeFile(wb, "Data_Warga_RT15_Kebonagung.xlsx");
     showToast("Data warga Excel (.xlsx) berhasil diunduh.");
   };
 

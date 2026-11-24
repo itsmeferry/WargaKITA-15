@@ -3,7 +3,7 @@
 ## 1. Pilihan Database Permanen & Gratis: Supabase (PostgreSQL)
 - **Gratis Permanen (Free Tier)**: 500 MB database PostgreSQL, 50.000 pengguna aktif bulanan (Supabase Auth), Row Level Security (RLS), tanpa kartu kredit.
 - **Langkah Setup**:
-  1. Buat akun di [https://supabase.com](https://supabase.com) dan buat proyek baru (`wargakita-rt17`).
+  1. Buat akun di [https://supabase.com](https://supabase.com) dan buat proyek baru (`wargakita-rt15`).
   2. Buka **SQL Editor** di dashboard Supabase, lalu jalankan file secara berurutan:
      - `supabase/migrations/001_schema.sql`
      - `supabase/migrations/002_rls.sql`

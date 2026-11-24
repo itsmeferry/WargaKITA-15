@@ -73,31 +73,31 @@ jobs:
               export WK_KEY_ALIAS
             fi
             gradle assembleRelease --no-daemon
-            cp app/build/outputs/apk/release/app-release.apk ../../WargaKITA-RT17-v1.16.0.apk
+            cp app/build/outputs/apk/release/app-release.apk ../../WargaKITA-RT15-v1.16.0.apk
           else
             gradle assembleDebug --no-daemon
-            cp app/build/outputs/apk/debug/app-debug.apk ../../WargaKITA-RT17-v1.16.0.apk
+            cp app/build/outputs/apk/debug/app-debug.apk ../../WargaKITA-RT15-v1.16.0.apk
           fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: WargaKITA-v1.16.0-apk
-          path: WargaKITA-RT17-v1.16.0.apk
+          path: WargaKITA-RT15-v1.16.0.apk
 
       - name: Publikasikan ke GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.16.0' }}
-          name: WargaKITA RT 17 (v1.16.0)
-          files: WargaKITA-RT17-v1.16.0.apk
+          name: WargaKITA RT 15 (v1.16.0)
+          files: WargaKITA-RT15-v1.16.0.apk
           make_latest: true
           body: |
             ## Pembaruan WargaKITA v1.16.0 (versionCode 26)
             ### NawakAI Agent AI & Voice Command
             - **UI Baru Flat UI (Popup Messenger + Chatbox Gemini):** Popup mengambang bebas kedip dengan animasi spring Android 60fps, ikon wajik 6 ekspresi NawakAI, layar Beranda grid 2×2, dan grid kolom export 2 kolom.
             - **Voice Command Native Android & Web (`id-ID`):** Voice inline ala Gemini (`SpeechRecognizer` senyap + 14-bar live RMS waveform tanpa popup Google), dilengkapi tombol Henti Paksa (`□`), jadwal Ronda Desember 2026 lengkap dengan reminder harian 19:00 WIB ke Pak RT, serta sinkronisasi & auto-hapus kalender HP otomatis.
-            - **24 Skill Agentic (6 Domain):** Memori revisi multi-turn, audit klasifikasi & kebersihan data, catat pembayaran via chat/suara, simulasi proyeksi kas, generator pengumuman WA & surat pengantar RT 17 otomatis, jadwal ronda, agenda kalender, log aduan warga, dan paket laporan rapat RT.
-            ### Perbaikan Data & Iuran Tahunan RT 17
+            - **24 Skill Agentic (6 Domain):** Memori revisi multi-turn, audit klasifikasi & kebersihan data, catat pembayaran via chat/suara, simulasi proyeksi kas, generator pengumuman WA & surat pengantar RT 15 otomatis, jadwal ronda, agenda kalender, log aduan warga, dan paket laporan rapat RT.
+            ### Perbaikan Data & Iuran Tahunan RT 15
             - **Kepala Keluarga Efektif (Data Janda):** Otomatis menampilkan nama istri aktif di Data KK, Detail KK, Cash RT, NawakAI, dan Export Warga apabila kepala keluarga meninggal dunia.
             - **Deduplikasi Tagihan Tahunan:** 1 tahun kalender dihitung maksimal 1 tagihan per kategori dan badge Tunggakan hanya tampil untuk piutang lintas tahun (`2025 & 2026`).
