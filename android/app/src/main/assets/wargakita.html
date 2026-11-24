@@ -3,12 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WargaKITA — RT 15 / RW 03 Kebonagung</title>
+  <title>WargaKITA 15 — RT 15 / RW 03 Kebonagung</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -239,6 +237,9 @@
     .nawak-home-card { background: var(--ng-user-bubble); border: 1px solid var(--ng-border); transition: border-color 160ms ease, transform 120ms ease; }
     .nawak-home-card:hover { border-color: #3b82f6; }
     .nawak-home-card:active { transform: scale(0.98); }
+    .wk-num, .flat-card p.font-extrabold { font-variant-numeric: tabular-nums; }
+    button.flat-card { transition: transform 140ms cubic-bezier(0.22,1,0.36,1), border-color 140ms ease; }
+    button.flat-card:active { transform: scale(0.985); }
     html.wk-dark .nawak-gemini-modal textarea#nawakInput,
     .nawak-gemini-modal textarea#nawakInput {
       background: transparent !important;
@@ -312,7 +313,7 @@
     <div class="flex items-center gap-2">
       <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-[#1d4ed8] font-semibold border border-blue-100">
         <span class="w-1.5 h-1.5 rounded-full bg-[#1d4ed8]"></span>
-        WargaKITA • RT 15 / RW 03 Kebonagung
+        WargaKITA 15 • RT 15 / RW 03 Kebonagung
       </span>
     </div>
     <button id="toggleWidthBtn" type="button" class="px-3 py-1 rounded-full bg-white border border-slate-200 hover:bg-slate-50 font-medium text-slate-700">
@@ -862,6 +863,51 @@ const state = {
   avatarStore: {}
 };
 
+const wkMediaDB = (() => {
+  let dbProm = null;
+  function openDB() {
+    if (dbProm) return dbProm;
+    dbProm = new Promise((resolve) => {
+      if (!window.indexedDB) return resolve(null);
+      try {
+        const req = indexedDB.open("WargaKITA_MediaDB", 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (_) { resolve(null); }
+    });
+    return dbProm;
+  }
+  return {
+    async get(k) {
+      const db = await openDB();
+      if (!db) return null;
+      return new Promise(res => {
+        try {
+          const tx = db.transaction("kv", "readonly").objectStore("kv").get(k);
+          tx.onsuccess = () => res(tx.result ?? null);
+          tx.onerror = () => res(null);
+        } catch (_) { res(null); }
+      });
+    },
+    async set(k, val) {
+      const db = await openDB();
+      if (!db) return false;
+      return new Promise(res => {
+        try {
+          const tx = db.transaction("kv", "readwrite");
+          tx.objectStore("kv").put(val, k);
+          tx.oncomplete = () => res(true);
+          tx.onerror = () => res(false);
+        } catch (_) { res(false); }
+      });
+    }
+  };
+})();
+
 try {
   const savedReceipts = localStorage.getItem("wk_receipts_v1");
   if (savedReceipts) state.receiptStore = JSON.parse(savedReceipts);
@@ -869,15 +915,33 @@ try {
   if (savedAvatars) state.avatarStore = JSON.parse(savedAvatars);
 } catch (_) {}
 
+// Hydrate & migrate receipts/avatars from IndexedDB (anti-QuotaExceededError)
+(async () => {
+  try {
+    const idbRec = await wkMediaDB.get("wk_receipts_v1");
+    if (idbRec && typeof idbRec === "object") state.receiptStore = { ...state.receiptStore, ...idbRec };
+    else if (Object.keys(state.receiptStore).length) await wkMediaDB.set("wk_receipts_v1", state.receiptStore);
+    const idbAv = await wkMediaDB.get("wk_avatars_v1");
+    if (idbAv && typeof idbAv === "object") state.avatarStore = { ...state.avatarStore, ...idbAv };
+    else if (Object.keys(state.avatarStore).length) await wkMediaDB.set("wk_avatars_v1", state.avatarStore);
+  } catch (_) {}
+})();
+
 function saveReceiptLocal(key, name, dataUrl) {
   if (!key || !dataUrl) return;
   state.receiptStore[key] = { name, dataUrl };
-  try { localStorage.setItem("wk_receipts_v1", JSON.stringify(state.receiptStore)); } catch (_) {}
+  wkMediaDB.set("wk_receipts_v1", state.receiptStore).then(ok => {
+    if (!ok) { try { localStorage.setItem("wk_receipts_v1", JSON.stringify(state.receiptStore)); } catch (_) {} }
+    else { try { localStorage.removeItem("wk_receipts_v1"); } catch (_) {} }
+  });
 }
 function saveAvatarLocal(uid, dataUrl) {
   if (!uid || !dataUrl) return;
   state.avatarStore[uid] = dataUrl;
-  try { localStorage.setItem("wk_avatars_v1", JSON.stringify(state.avatarStore)); } catch (_) {}
+  wkMediaDB.set("wk_avatars_v1", state.avatarStore).then(ok => {
+    if (!ok) { try { localStorage.setItem("wk_avatars_v1", JSON.stringify(state.avatarStore)); } catch (_) {} }
+    else { try { localStorage.removeItem("wk_avatars_v1"); } catch (_) {} }
+  });
 }
 
 function sanitizeFilePart(str) {
@@ -1237,7 +1301,7 @@ const I18N = {
     lainnya_title: "Lainnya & Laporan", logout: "Keluar", photo: "Foto", edit_profile: "Edit Profil", password: "Password",
     theme_title: "Tampilan & Tema Aplikasi", theme_light: "Terang", theme_dark: "Gelap", theme_device: "Device",
     lang_title: "Bahasa Aplikasi", lang_sub: "Pilih bahasa antarmuka",
-    app_title: "Aplikasi WargaKITA", dl_apk: "Unduh APK Terbaru", check_upd: "Cek Update Aplikasi",
+    app_title: "Aplikasi WargaKITA 15", dl_apk: "Unduh APK Terbaru", check_upd: "Cek Update Aplikasi",
     greet_morn: "Selamat Pagi,", greet_noon: "Selamat Siang,", greet_eve: "Selamat Sore,", greet_night: "Selamat Malam,",
     lang_lbl: "Bahasa", dev_panel: "Panel Khusus Developer", dev_sub: "Kontrol akses & pemeliharaan data",
     dev_reset_pass: "Ubah Password User", dev_reset_month: "Reset Data Bulan Ini ke 0",
@@ -1253,7 +1317,7 @@ const I18N = {
     lainnya_title: "More & Reports", logout: "Sign Out", photo: "Photo", edit_profile: "Edit Profile", password: "Password",
     theme_title: "App Appearance & Theme", theme_light: "Light", theme_dark: "Dark", theme_device: "Device",
     lang_title: "App Language", lang_sub: "Choose interface language",
-    app_title: "WargaKITA App", dl_apk: "Download Latest APK", check_upd: "Check for Updates",
+    app_title: "WargaKITA 15 App", dl_apk: "Download Latest APK", check_upd: "Check for Updates",
     greet_morn: "Good Morning,", greet_noon: "Good Afternoon,", greet_eve: "Good Evening,", greet_night: "Good Night,",
     lang_lbl: "Language", dev_panel: "Developer Control Panel", dev_sub: "Access control & data maintenance",
     dev_reset_pass: "Change User Password", dev_reset_month: "Reset This Month Data to 0",
@@ -1269,7 +1333,7 @@ const I18N = {
     lainnya_title: "Liyane & Laporan", logout: "Metu", photo: "Foto", edit_profile: "Owahi Profil", password: "Sandi",
     theme_title: "Tampilan & Tema Aplikasi", theme_light: "Padhang", theme_dark: "Peteng", theme_device: "Perangkat",
     lang_title: "Boso Aplikasi", lang_sub: "Pilih boso tampilan",
-    app_title: "Aplikasi WargaKITA", dl_apk: "Unduh APK Anyar", check_upd: "Cek Update Aplikasi",
+    app_title: "Aplikasi WargaKITA 15", dl_apk: "Unduh APK Anyar", check_upd: "Cek Update Aplikasi",
     greet_morn: "Sugeng Enjang,", greet_noon: "Sugeng Siang,", greet_eve: "Sugeng Sonten,", greet_night: "Sugeng Dalu,",
     lang_lbl: "Boso", dev_panel: "Panel Khusus Developer", dev_sub: "Kontrol akses & pangaturan data",
     dev_reset_pass: "Ganti Sandi User", dev_reset_month: "Reset Data Wulan Iki dadi 0",
@@ -1328,8 +1392,23 @@ function getEffectiveHeadMember(members) {
   return list.find(m => m.family_relationship === "Kepala Keluarga") || list[0];
 }
 
+function rebuildStateIndexes() {
+  const resByHH = new Map();
+  (state.residents || []).forEach(r => {
+    let arr = resByHH.get(r.household_id);
+    if (!arr) { arr = []; resByHH.set(r.household_id, arr); }
+    arr.push(r);
+  });
+  const allocByDue = new Map();
+  (state.allocations || []).forEach(a => {
+    const prev = allocByDue.get(a.household_due_id) || 0;
+    allocByDue.set(a.household_due_id, prev + Number(a.amount_allocated || 0));
+  });
+  state._idx = { resByHH, allocByDue };
+}
+
 function getHeadNameForHousehold(householdId) {
-  const members = state.residents.filter(r => r.household_id === householdId);
+  const members = (state._idx && state._idx.resByHH.get(householdId)) || state.residents.filter(r => r.household_id === householdId);
   const head = getEffectiveHeadMember(members);
   if (head) return head.full_name;
   const hh = state.households.find(h => h.id === householdId);
@@ -1442,7 +1521,11 @@ async function cleanupExpiredEventsAndSyncCalendar() {
           });
         }
       });
-      window.AndroidBridge.syncWargaKITAEvents(JSON.stringify(syncList));
+      const syncPayload = JSON.stringify(syncList);
+      if (syncPayload !== window.__wkLastCalSyncHash) {
+        window.__wkLastCalSyncHash = syncPayload;
+        window.AndroidBridge.syncWargaKITAEvents(syncPayload);
+      }
       const rRole = state.profile?.role || "";
       if (["pak_rt", "developer_admin", "wakil_rt"].includes(rRole) && typeof window.AndroidBridge.scheduleRondaReminders === "function" && !window.__wkRondaScheduled) {
         window.__wkRondaScheduled = true;
@@ -1487,29 +1570,23 @@ function stripForSpeech(txt) {
     .slice(0, 320);
 }
 
+function formatNawakMarkdown(raw) {
+  let txt = String(raw || "").trim()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  txt = txt.replace(/\*\*([^*\n]+?)\*\*/g, '<strong class="font-bold">$1</strong>');
+  txt = txt.replace(/(^|[\s(])\*([^*\n]+?)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
+  txt = txt.replace(/`([^`\n]+?)`/g, '<code class="px-1 py-0.5 rounded font-mono text-[12px]" style="background: var(--ng-user-bubble);">$1</code>');
+  return txt;
+}
+
 function stopNawakSpeech() {
   try { if (window.AndroidBridge && window.AndroidBridge.stopSpeak) window.AndroidBridge.stopSpeak(); } catch (_) {}
   try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (_) {}
 }
 
-function speakNawakReply(rawText) {
-  if (!__wkNawakTtsOn) return;
-  const clean = stripForSpeech(rawText);
-  if (!clean) return;
-  try {
-    if (window.AndroidBridge && typeof window.AndroidBridge.speakJavanese === "function") {
-      window.AndroidBridge.speakJavanese(clean);
-      return;
-    }
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(clean);
-      u.lang = "id-ID";
-      u.rate = 1.03;
-      window.speechSynthesis.speak(u);
-    }
-  } catch (_) {}
-}
+function speakNawakReply() { /* TTS auto-read dinonaktifkan sesuai preferensi */ }
 
 function updateOfflineBanner() {
   let bar = document.getElementById("wkOfflineBanner");
@@ -1606,6 +1683,7 @@ async function _loadAllDataCore(silent) {
     state.dues = curPeriodDues;
     state.payments = pays || [];
     state.allocations = (allocs || []).filter(a => a.payments && a.payments.status !== "voided");
+    rebuildStateIndexes();
     state.cashTransactions = cash || [];
     state.yearCashTransactions = yearCash || [];
     state.openingBalance = ob ? Number(ob.amount || 0) : 0;
@@ -1631,9 +1709,9 @@ async function _loadAllDataCore(silent) {
     if (pendingTxCount > 0 && getPerms().canApprove) {
       const msg = `${pendingTxCount} transaksi menunggu persetujuan Developer / Pak RT / Wakil RT.`;
       if (window.AndroidBridge && window.AndroidBridge.showNotification) {
-        try { window.AndroidBridge.showNotification("WargaKITA • Persetujuan Kas", msg); } catch (_) {}
+        try { window.AndroidBridge.showNotification("WargaKITA 15 • Persetujuan Kas", msg); } catch (_) {}
       } else if ("Notification" in window && Notification.permission === "granted") {
-        try { new Notification("WargaKITA • Persetujuan Kas", { body: msg }); } catch (_) {}
+        try { new Notification("WargaKITA 15 • Persetujuan Kas", { body: msg }); } catch (_) {}
       }
     }
   } catch (err) {
@@ -1753,7 +1831,7 @@ function getHouseholdArrearsHistory(householdId) {
   });
   const yearTotals = new Map();
   byYearCat.forEach(d => {
-    const paid = state.allocations.filter(a => a.household_due_id === d.id).reduce((s, a) => s + Number(a.amount_allocated || 0), 0);
+    const paid = (state._idx && state._idx.allocByDue.has(d.id)) ? state._idx.allocByDue.get(d.id) : state.allocations.filter(a => a.household_due_id === d.id).reduce((s, a) => s + Number(a.amount_allocated || 0), 0);
     const rem = Math.max(0, Number(d.amount_due || 0) - paid);
     if (rem > 0) {
       const yr = Number(d.period_year);
@@ -1965,7 +2043,7 @@ function renderLoginScreen() {
       <div class="w-full max-w-[440px] space-y-5">
         <div class="text-center space-y-1.5">
           <img src="${ICON_SRC}" alt="Ikon WargaKITA" class="w-20 h-20 mx-auto rounded-2xl shadow-sm object-cover" />
-          <h1 class="text-[24px] font-extrabold text-[#1d4ed8] tracking-tight pt-1">WargaKITA</h1>
+          <h1 class="text-[24px] font-extrabold text-[#1d4ed8] tracking-tight pt-1">WargaKITA 15</h1>
           <p class="text-[13px] text-slate-500 leading-snug">Administrasi Warga<br/>RT 15 / RW 03 Kebonagung</p>
         </div>
 
@@ -3359,6 +3437,11 @@ async function askNawakGemini(query, onStep, abortSignal) {
         userRole: state.profile?.role || "pengurus",
         context: fullContext,
         userMemory: loadNawakMemory(state.profile?.id),
+        agentContext: {
+          lastTopic: nawakAgentCtx.lastTopic || "",
+          lastHeadName: nawakAgentCtx.lastHouseholdId ? getHeadNameForHousehold(nawakAgentCtx.lastHouseholdId) : "",
+          hasLastDraft: !!nawakAgentCtx.lastDraft
+        },
         history: (state.nawakMessages || []).filter(m => !m.isLoading).slice(-12).map(m => ({ role: m.role, text: m.text }))
       })
     });
@@ -3377,13 +3460,197 @@ async function askNawakGemini(query, onStep, abortSignal) {
   return { ...generateNawakAIReply(query), isGemini: false, openBdayCard: wantsCard };
 }
 
+const NAWAK_SLANG_DICT = {
+  "brp":"berapa","brapa":"berapa","piro":"berapa","pira":"berapa","pinten":"berapa",
+  "jnd":"janda","rondo":"janda","randa":"janda","jnda":"janda",
+  "blm":"belum","blom":"belum","drg":"belum","durung":"belum","dereng":"belum",
+  "sdh":"sudah","udh":"sudah","wes":"sudah","wis":"sudah","sampun":"sudah",
+  "byr":"bayar","mbayar":"bayar","byar":"bayar","lns":"lunas",
+  "tgkn":"tunggakan","tunggkan":"tunggakan","tnggkn":"tunggakan","nunggak":"tunggakan","utang":"tunggakan","piutang":"tunggakan",
+  "rnda":"ronda","rond":"ronda","siskamling":"ronda","jaga":"ronda",
+  "bsk":"besok","sesuk":"besok","mbenjing":"besok","hr":"hari","skrg":"sekarang","saiki":"sekarang","iki":"ini","saat":"sekarang",
+  "sopo":"siapa","spa":"siapa","sp":"siapa","sinten":"siapa",
+  "bkn":"buatkan","bikinin":"buatkan","gawekno":"buatkan","gawe":"buatkan","bikin":"buatkan",
+  "rmh":"rumah","omah":"rumah","griya":"rumah","dalem":"rumah",
+  "sldo":"saldo","duit":"kas","uang":"kas","duwit":"kas","dana":"kas",
+  "kgt":"kegiatan","acra":"acara","rpt":"rapat","kumpul":"rapat",
+  "thl":"tahlil","thlil":"tahlil","tahlilan":"tahlil","ysn":"yasin",
+  "mnggl":"meninggal","wft":"meninggal","almarhum":"meninggal","lelayu":"meninggal","duka":"meninggal",
+  "wrg":"warga","penduduk":"warga","kk":"kk","keluarga":"kk",
+  "exp":"export","eksport":"export","unduh":"export","download":"export",
+  "kmis":"kamis","jumat":"jumat","sbt":"sabtu","mgg":"minggu","snn":"senin","sls":"selasa","rbu":"rabu",
+  "pndh":"pindah","kntrk":"kontrak","kst":"kost","prmnn":"permanen",
+  "cek":"cek","liat":"cek","lihat":"cek","tunjukin":"cek","tampilkan":"cek","delok":"cek",
+  "krm":"kirim","wa":"wa","watsap":"wa","japri":"japri","ingetin":"ingatkan","ingetno":"ingatkan",
+  "srt":"surat","pgntr":"pengantar","dmsli":"domisili",
+  "lprn":"laporan","rkp":"rekap","rncn":"rincian","dtl":"detail",
+  "pmskn":"pemasukan","pnglrn":"pengeluaran","kluar":"pengeluaran","msuk":"pemasukan",
+  "pndng":"pending","acc":"approval","setujui":"approval",
+  "ultah":"ultah","ulangtahun":"ultah","bday":"ultah",
+  "gnti":"ganti","ubh":"ubah","rvs":"revisi","tmbh":"tambah",
+  "jml":"berapa","jumlah":"berapa","total":"berapa","ono":"ada","ada":"ada","piye":"bagaimana","gmn":"bagaimana","gimana":"bagaimana",
+  "ora":"tidak","gak":"tidak","ga":"tidak","tdk":"tidak","nggak":"tidak","mboten":"tidak",
+  "kpn":"kapan","dmna":"dimana","dmn":"dimana","nang":"di","ng":"di","ning":"di",
+  "smua":"semua","kabeh":"semua","sedoyo":"semua","yg":"yang","sing":"yang","ingkang":"yang",
+  "utk":"untuk","gawe":"untuk","buat":"untuk","kagem":"untuk","dg":"dengan","dgn":"dengan","karo":"dengan",
+  "bln":"bulan","wulan":"bulan","thn":"tahun","tgl":"tanggal","jm":"jam","pkl":"pukul",
+  "krj":"kerja","bkti":"bakti","gotong":"kerja bakti","bersih":"kerja bakti",
+  "klsfkasi":"klasifikasi","kls":"klasifikasi","adt":"audit","prksa":"audit","hp":"hp","telp":"hp","nohp":"hp"
+};
+
+const NAWAK_KEY_VOCAB = [
+  "janda","tunggakan","bayar","lunas","saldo","kas","ronda","besok","tahlil","meninggal",
+  "export","laporan","rincian","pemasukan","pengeluaran","pending","approval","klasifikasi",
+  "audit","surat","pengantar","domisili","ultah","agenda","rapat","acara","pengumuman",
+  "kontrak","permanen","kost","pindah","proyeksi","simulasi","ingatkan","japri","aduan"
+];
+
+function damerauLevenshtein(a, b) {
+  a = String(a || ""); b = String(b || "");
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+function normalizeNawakQuery(rawQuery) {
+  const cleaned = String(rawQuery || "").toLowerCase().replace(/[?!,]+/g, " ").replace(/\s+/g, " ").trim();
+  const tokens = cleaned.split(" ").filter(Boolean);
+  let corrected = false;
+  const residentNames = (state.residents || []).map(r => String(r.full_name || "").toLowerCase());
+  const outTokens = tokens.map(tok => {
+    if (NAWAK_SLANG_DICT[tok]) { corrected = true; return NAWAK_SLANG_DICT[tok]; }
+    if (tok.length >= 4 && !/^\d+$/.test(tok)) {
+      // Check command vocab typo (Levenshtein <= 1 for len 4-5, <= 2 for len >= 6)
+      const maxD = tok.length >= 6 ? 2 : 1;
+      let bestWord = null, bestDist = maxD + 1;
+      for (const vw of NAWAK_KEY_VOCAB) {
+        if (Math.abs(vw.length - tok.length) > maxD) continue;
+        const d = damerauLevenshtein(tok, vw);
+        if (d > 0 && d < bestDist) { bestDist = d; bestWord = vw; }
+      }
+      if (bestWord) { corrected = true; return bestWord; }
+      // Check resident first/last name typo (Levenshtein <= 2)
+      let bestResTok = null, bestResD = maxD + 1;
+      for (const rn of residentNames) {
+        for (const part of rn.split(/\s+/)) {
+          if (part.length < 4 || Math.abs(part.length - tok.length) > maxD) continue;
+          const d = damerauLevenshtein(tok, part);
+          if (d === 0) { bestResTok = null; bestResD = 0; break; }
+          if (d < bestResD) { bestResD = d; bestResTok = part; }
+        }
+        if (bestResD === 0) break;
+      }
+      if (bestResTok) { corrected = true; return bestResTok; }
+    }
+    return tok;
+  });
+  return { normalized: outTokens.join(" "), corrected };
+}
+
 const nawakAgentCtx = {
   lastDraft: "",
   lastDraftKind: "",
   lastHouseholdId: null,
   lastResidentId: null,
-  lastTopic: ""
+  lastTopic: "",
+  pendingSlot: null,
+  recentEntities: []
 };
+
+function rememberNawakEntity(hhId, resId, label) {
+  if (hhId) nawakAgentCtx.lastHouseholdId = hhId;
+  if (resId) nawakAgentCtx.lastResidentId = resId;
+  if (label) {
+    nawakAgentCtx.recentEntities = [
+      { hhId: hhId || null, resId: resId || null, label },
+      ...nawakAgentCtx.recentEntities.filter(x => x.label !== label)
+    ].slice(0, 5);
+  }
+}
+
+function findMatchingHouseholds(keyword) {
+  const kw = String(keyword || "").toLowerCase().replace(/\b(pak|bu|bapak|ibu|sdr|mas|mbak|kk|keluarga)\b/gi, "").trim();
+  if (!kw || kw.length < 2) return [];
+  const scored = [];
+  state.households.forEach(h => {
+    const hName = getHeadNameForHousehold(h.id);
+    const members = state.residents.filter(r => r.household_id === h.id);
+    let best = fuzzyMatchResidentScore(kw, hName);
+    members.forEach(m => {
+      const sc = fuzzyMatchResidentScore(kw, m.full_name);
+      if (sc > best) best = sc;
+    });
+    if (best >= 65) scored.push({ h, headName: hName, score: best });
+  });
+  return scored.sort((a, b) => b.score - a.score);
+}
+
+function parseIndonesianAmount(text) {
+  const str = String(text || "").toLowerCase();
+  const m = str.match(/(?:rp\.?\s*)?(\d+(?:[.,]\d{1,3})*)\s*(jt|juta|rb|ribu|k)?\b/);
+  if (!m) return 0;
+  const raw = m[1];
+  const unit = m[2] || "";
+  if (unit === "jt" || unit === "juta") {
+    return Math.round(Number(raw.replace(",", ".")) * 1000000);
+  }
+  if (unit === "rb" || unit === "ribu" || unit === "k") {
+    return Math.round(Number(raw.replace(",", ".")) * 1000);
+  }
+  const digits = Number(raw.replace(/[.,]/g, ""));
+  return Number.isFinite(digits) ? digits : 0;
+}
+
+function extractReceiptDetailsFromText(text, fallbackName = "") {
+  const raw = String(text || "");
+  if (!raw || raw.length < 6) return null;
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let amount = 0;
+  const priorityLine = lines.find(l => /(total|jumlah|bayar|nominal|grand total|subtotal|rp\.?\s*\d)/i.test(l));
+  if (priorityLine) amount = parseIndonesianAmount(priorityLine);
+  if (!amount) {
+    const allNums = [];
+    const rx = /(?:rp\.?\s*)?(\d{1,3}(?:[.,]\d{3})+)/gi;
+    let mm;
+    while ((mm = rx.exec(raw)) !== null) {
+      const val = Number(mm[1].replace(/[.,]/g, ""));
+      if (val >= 1000 && val <= 100000000) allNums.push(val);
+    }
+    if (allNums.length) amount = Math.max(...allNums);
+  }
+  if (!amount || amount < 500) return null;
+  const isIncome = /(transfer masuk|pemasukan|donasi|sumbangan|iuran|setoran|qris masuk)/i.test(raw);
+  const txType = isIncome ? "income" : "expense";
+  let category = isIncome ? "Pemasukan Lainnya" : "Operasional RT";
+  if (!isIncome) {
+    if (/(lampu|pos|ronda|kamling|senter|keamanan)/i.test(raw)) category = "Keamanan / Pos Kamling";
+    else if (/(sapu|sampah|kebersihan|fogging|gotong)/i.test(raw)) category = "Kebersihan & Lingkungan";
+    else if (/(konsumsi|snack|aqua|minum|nasi|rapat|acara|tahlil)/i.test(raw)) category = "Kegiatan Warga";
+    else if (/(duka|takziah|sakit|sosial|rukem)/i.test(raw)) category = "Sosial & Kematian";
+  }
+  const dateM = raw.match(/(20\d{2}[-/]\d{2}[-/]\d{2}|\d{1,2}[-/]\d{1,2}[-/]20\d{2})/);
+  const txDate = dateM ? dateM[1].replace(/\//g, "-") : new Date().toISOString().slice(0, 10);
+  const descCandidate = lines.find(l => l.length > 4 && !/^(rp|total|tgl|tanggal|\d+$)/i.test(l)) || fallbackName || (isIncome ? "Pemasukan dari bukti foto" : "Pengeluaran dari nota/struk");
+  return {
+    transaction_type: txType,
+    amount,
+    category,
+    transaction_date: /^20\d{2}-/.test(txDate) ? txDate : new Date().toISOString().slice(0, 10),
+    description: descCandidate.slice(0, 90)
+  };
+}
 
 function fuzzyMatchResidentScore(queryStr, targetStr) {
   const q = String(queryStr || "").toLowerCase().trim();
@@ -3401,8 +3668,53 @@ function fuzzyMatchResidentScore(queryStr, targetStr) {
 }
 
 function generateNawakAIReply(query) {
-  const q = String(query || "").toLowerCase().trim();
+  const nlu = normalizeNawakQuery(query);
+  const q = nlu.normalized || String(query || "").toLowerCase().trim();
   const hasWord = (rx) => rx.test(q);
+  const corrNote = (nlu.corrected && nlu.normalized !== String(query || "").toLowerCase().trim())
+    ? `*(Dipahami sebagai: "${nlu.normalized}")*\n`
+    : "";
+
+  // [NLU Lapis 3] Input singkat 1-2 kata (contoh: "saldo?", "kas saiki", "ronda besok", "janda berapa")
+  if (/^(saldo|kas)(\s+(sekarang|ini|rt))?$/i.test(q)) {
+    const snap = getGlobalSummary();
+    return {
+      exactMatch: true,
+      text: `${corrNote}**Ringkasan Kas RT 15 (${MONTHS[state.periodMonth - 1]} ${state.periodYear}):**\n• Pemasukan Approved: **${formatRp(snap.kasIn)}**\n• Pengeluaran Approved: **${formatRp(snap.kasOut)}**\n• Saldo Akhir Kas: **${formatRp(snap.kasBalance)}**\n• Sisa Piutang Iuran: **${formatRp(snap.totalTunggakan)}**`,
+      followUps: [
+        { label: "Buat Draft Laporan Kas WA", q: "Buatkan draft laporan keuangan kas RT 15 lengkap" },
+        { label: "Cek Tunggakan", q: "Siapa saja KK yang belum lunas bulan ini?" }
+      ]
+    };
+  }
+  if (/^ronda\s+(besok|hari\s+ini|sekarang|malam\s+ini)$/i.test(q)) {
+    const dObj = new Date();
+    if (/besok/i.test(q)) dObj.setDate(dObj.getDate() + 1);
+    const iso = dObj.toISOString().slice(0, 10);
+    const matchR = (RONDA_DES_2026 || []).find(r => r.event_date === iso) || (RONDA_DES_2026 || [])[0];
+    if (matchR) {
+      return {
+        exactMatch: true,
+        text: `${corrNote}**${matchR.title}** (${matchR.event_date})\n${matchR.description}`,
+        followUps: [{ label: "Buat Pengumuman Ronda WA", q: "Buatkan draft pengumuman jadwal ronda malam ini untuk grup WA RT 15" }]
+      };
+    }
+  }
+
+  // [NLU Lapis 4] Disambiguasi nama ganda (ketika user hanya mengetik 1 nama seperti "agus" atau "teguh")
+  if (q.split(" ").length <= 2 && q.length >= 3 && !NAWAK_KEY_VOCAB.includes(q) && !/\b(halo|hai|hi|pagi|siang|sore|malam|buka|cara|bantuan)\b/i.test(q)) {
+    const matchedHH = state.households.filter(h => h.is_active && getHeadNameForHousehold(h.id).toLowerCase().includes(q));
+    if (matchedHH.length >= 2 && matchedHH.length <= 6) {
+      return {
+        exactMatch: true,
+        text: `${corrNote}Ada **${matchedHH.length} Kepala Keluarga** dengan nama mirip **"${q}"**. Pilih siapa yang ingin Anda cek:`,
+        followUps: matchedHH.map(h => {
+          const nm = getHeadNameForHousehold(h.id);
+          return { label: nm, q: `Cek tagihan dan data ${nm}` };
+        })
+      };
+    }
+  }
   const rawOrigQ = String(query || "").trim();
   const sumSnap = getGlobalSummary();
 
@@ -3433,6 +3745,231 @@ function generateNawakAIReply(query) {
         quickNav: [{ tab: tInfo.tab, label: `Buka ${tInfo.label}` }]
       };
     }
+  }
+
+  // [P2 — Slot-Filling Continuation] Lanjutkan perintah tertunda jika user menjawab pertanyaan klarifikasi
+  if (nawakAgentCtx.pendingSlot) {
+    const slot = nawakAgentCtx.pendingSlot;
+    if (/^(batal|gak jadi|tidak jadi|cancel)$/i.test(q)) {
+      nawakAgentCtx.pendingSlot = null;
+      return { exactMatch: true, text: "Oke, perintah sebelumnya dibatalkan. Ada hal lain yang bisa saya bantu?" };
+    }
+    if (slot.kind === "record_cash_tx") {
+      const amt = slot.amount || parseIndonesianAmount(rawOrigQ);
+      const desc = slot.description || rawOrigQ.replace(/(?:rp\.?\s*)?\d+(?:[.,]\d+)*\s*(?:jt|juta|rb|ribu|k)?/gi, "").trim();
+      if (!amt) {
+        return { exactMatch: true, text: "Nominalnya berapa rupiah? (Contoh: *150rb* atau *75.000*)" };
+      }
+      nawakAgentCtx.pendingSlot = null;
+      const isInc = slot.txType === "income";
+      const cat = slot.category || (isInc ? "Pemasukan Lainnya" : "Operasional RT");
+      const finalDesc = desc || (isInc ? "Pemasukan Kas RT 15" : "Pengeluaran Operasional RT 15");
+      return {
+        exactMatch: true,
+        text: `Siap mencatat **${isInc ? "Pemasukan" : "Pengeluaran"} Kas RT 15**:\n• Nominal: **${formatRp(amt)}**\n• Kategori: **${cat}**\n• Keterangan: ${finalDesc}\n\nKlik tombol di bawah untuk menyimpan:`,
+        confirmAction: { type: "record_cash_tx", transaction_type: slot.txType, amount: amt, category: cat, description: finalDesc, label: `Simpan ${isInc ? "Pemasukan" : "Pengeluaran"} ${formatRp(amt)}` }
+      };
+    }
+    if (slot.kind === "record_payment_method") {
+      const method = /qris/i.test(q) ? "QRIS" : (/transfer/i.test(q) ? "Transfer" : "Tunai");
+      nawakAgentCtx.pendingSlot = null;
+      return {
+        exactMatch: true,
+        text: `Siap catat pembayaran iuran:\n• Kepala Keluarga: **${slot.headName}**\n• Nominal: **${formatRp(slot.amount)}** (${method})\n\nKlik konfirmasi di bawah untuk menyimpan:`,
+        confirmAction: { type: "record_payment", householdId: slot.householdId, headName: slot.headName, amount: slot.amount, method, label: `Simpan Bayar ${formatRp(slot.amount)} (${method})` }
+      };
+    }
+    if (slot.kind === "refine_draft" && nawakAgentCtx.lastDraft && /(?:jam|pukul|rumah|balai|pos|hari|senin|selasa|rabu|kamis|jumat|sabtu|minggu|almarhum|nama|alamat|tanggal|tgl)/i.test(q) && !/\b(cek|berapa|siapa|audit|export|buka|saldo|kas)\b/i.test(q)) {
+      let updated = nawakAgentCtx.lastDraft;
+      const newJam = rawOrigQ.match(/(?:jam|pukul)\s+([0-9]{1,2}[.:][0-9]{2}(?:\s*WIB)?)/i);
+      const newTmp = rawOrigQ.match(/(?:di\s+rumah|rumah|kediaman|tempat|lokasi|di)\s+([A-Za-z0-9\s.,\/\-]+?)(?=\s+(?:hari|tanggal|tgl|jam|pukul|dan|$))/i);
+      const newHari = rawOrigQ.match(/((?:senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu|ahad)(?:[,\s]+\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?)?)/i);
+      const newNama = rawOrigQ.match(/(?:almarhum|almarhumah|nama|bapak|bp\.?|ibu)\s+([A-Za-z\s.]+?)(?=\s+(?:alamat|di|jam|pukul|hari|$))/i);
+      if (newJam && newJam[1]) updated = updated.replace(/(\*?(?:Waktu|Jam|Diberangkatkan pukul):?\s*\*?)([^\n]+)/i, `$1${newJam[1].trim()}`);
+      if (newTmp && newTmp[1]) updated = updated.replace(/(\*?(?:Tempat|Lokasi|Shohibul Bait|Titik Kumpul|Alamat)[^:\n]*:\s*\*?)([^\n]+)/i, `$1${newTmp[1].trim()}`);
+      if (newHari && newHari[1]) updated = updated.replace(/(\*?(?:Hari\s*\/\s*Tanggal|Tanggal):\s*\*?)([^\n]+)/i, `$1${newHari[1].trim()}`);
+      if (newNama && newNama[1]) updated = updated.replace(/(\*?Nama:\s*\*?)([^\n]+)/i, `$1${newNama[1].trim()}`);
+      nawakAgentCtx.lastDraft = updated;
+      nawakAgentCtx.pendingSlot = null;
+      return {
+        exactMatch: true,
+        isAnnouncementSkill: true,
+        text: "Siap! Detail yang Anda sebutkan langsung saya masukkan otomatis ke dalam draft. Silakan salin atau kirim ke WA:",
+        copyText: updated,
+        followUps: [
+          { label: "Ubah ke Bahasa Jawa", q: "Ubah draft tadi ke bahasa Jawa halus" },
+          { label: "Briefing Hari Ini", q: "Briefing kondisi RT 15 hari ini" }
+        ]
+      };
+    }
+  }
+
+  // [P1 — Pronoun Resolution] Selesaikan rujukan "dia / beliau / orang itu / KK itu" dari memori sesi
+  if (/\b(dia|beliau|orang itu|kk itu|warga itu|alamatnya|no hpnya|tagihannya)\b/i.test(q) && nawakAgentCtx.lastHouseholdId) {
+    const refHH = state.households.find(h => h.id === nawakAgentCtx.lastHouseholdId);
+    if (refHH) {
+      const refName = getHeadNameForHousehold(refHH.id);
+      const refMembers = state.residents.filter(r => r.household_id === refHH.id);
+      const refHead = getEffectiveHeadMember(refMembers);
+      const refSum = getHouseholdDuesSummary(refHH.id);
+      if (/\b(alamat|rumah|tinggal)\b/i.test(q)) {
+        return { exactMatch: true, text: `Alamat **${refName}**: ${(refHead && refHead.address_override) || refHH.address || "-"} (Status: ${refHH.residence_status}).` };
+      }
+      if (/\b(hp|wa|telepon|nomor|kontak)\b/i.test(q)) {
+        const ph = (refHead && refHead.phone) || (refMembers.find(m => m.phone)?.phone) || "Belum terdaftar";
+        return { exactMatch: true, text: `Nomor HP **${refName}**: **${ph}**.` };
+      }
+      if (/\b(tagihan|iuran|tunggakan|sisa|lunas)\b/i.test(q) && !/\b(catat|bayar|lunasi|ingatkan)\b/i.test(q)) {
+        return { exactMatch: true, text: `Status iuran **${refName}** (${MONTHS[state.periodMonth - 1]} ${state.periodYear}): **${refSum.status === "HIJAU" ? "LUNAS" : "Sisa " + formatRp(refSum.remaining)}**${refSum.unpaidCats.length ? ` (${refSum.unpaidCats.join(", ")})` : ""}.` };
+      }
+    }
+  }
+
+  // [P2 — Tool Chaining] Multi-Aksi: Cek belum lunas + langsung buatkan pengumuman WA
+  if (/\b(belum lunas|tunggakan|menunggak)\b/i.test(q) && /\b(buatkan|bikin|sekalian|lalu)\b/i.test(q) && /\b(pengumuman|draf|draft|wa|broadcast)\b/i.test(q)) {
+    const unpaidHHs = state.households.filter(h => h.is_active).map(h => ({
+      name: getHeadNameForHousehold(h.id),
+      sum: getHouseholdDuesSummary(h.id)
+    })).filter(x => x.sum.status === "MERAH" || x.sum.status === "KUNING");
+    const draft = `*PENGINGAT IURAN WARGA RT 15 / RW 03 KEBONAGUNG*\n*Periode: ${MONTHS[state.periodMonth - 1]} ${state.periodYear}*\n\nAssalamu'alaikum Wr. Wb. / Salam Sejahtera,\nKami informasikan bahwa per hari ini masih terdapat *${unpaidHHs.length} KK* dengan total sisa tagihan sebesar *${formatRp(sumSnap.totalTunggakan)}*.\n\nBagi Bapak/Ibu yang belum menunaikan iuran tahunan (Reguler Rp 138.000 / Janda Rukem Rp 42.000), dimohon kesediaannya untuk melunasi melalui tunai, transfer, atau QRIS kepada pengurus RT (Fibriono / Agung Setyabudi / Ferry Surya Windy).\n\nTerima kasih atas kerja sama dan kekompakan warga RT 15.\n*Pengurus RT 15 / RW 03 Kebonagung*`;
+    nawakAgentCtx.lastDraft = draft;
+    nawakAgentCtx.lastTopic = "pengumuman_tunggakan";
+    return {
+      exactMatch: true,
+      isAnnouncementSkill: true,
+      text: `**Multi-Aksi Selesai:**\n1. Ditemukan **${unpaidHHs.length} KK** belum lunas dengan total sisa **${formatRp(sumSnap.totalTunggakan)}** *(contoh: ${unpaidHHs.slice(0, 5).map(x => x.name).join(", ")}${unpaidHHs.length > 5 ? ", dll" : ""})*.\n2. Draft pengumuman WA sudah saya susun otomatis di bawah:`,
+      copyText: draft,
+      followUps: [
+        { label: "Ubah ke Bahasa Jawa", q: "Ubah draft tadi ke bahasa Jawa halus" },
+        { label: "Draft Laporan Kas", q: "Buatkan draft laporan keuangan kas RT 15 lengkap" }
+      ]
+    };
+  }
+
+  // [P2 — Catat Pengeluaran / Pemasukan Kas Lain via Chat & Suara]
+  if (/\b(catat|input|tambah(?:kan)?)\b/i.test(q) && /\b(pengeluaran|belanja|beli|bayar listrik|pemasukan lain|donasi|sumbangan)\b/i.test(q) && !/\b(iuran|warga\s+bayar)\b/i.test(q)) {
+    const isInc = /\b(pemasukan|donasi|sumbangan|hibah)\b/i.test(q);
+    const txType = isInc ? "income" : "expense";
+    const amt = parseIndonesianAmount(rawOrigQ);
+    let cat = isInc ? "Pemasukan Lainnya" : "Operasional RT";
+    if (!isInc) {
+      if (/(lampu|pos|ronda|kamling|senter|keamanan)/i.test(q)) cat = "Keamanan / Pos Kamling";
+      else if (/(sapu|sampah|kebersihan|fogging|gotong)/i.test(q)) cat = "Kebersihan & Lingkungan";
+      else if (/(konsumsi|snack|aqua|minum|nasi|rapat|acara|tahlil)/i.test(q)) cat = "Kegiatan Warga";
+      else if (/(duka|takziah|sakit|sosial|rukem)/i.test(q)) cat = "Sosial & Kematian";
+    }
+    const cleanDesc = rawOrigQ
+      .replace(/^(?:catat|input|tambahkan|tambah)\s+(?:pengeluaran|pemasukan|kas|belanja)?\s*/i, "")
+      .replace(/(?:rp\.?\s*)?\d+(?:[.,]\d+)*\s*(?:jt|juta|rb|ribu|k)?/gi, "")
+      .replace(/^(?:untuk|buat|sebesar|dari)\s+/i, "")
+      .trim();
+    if (!amt) {
+      nawakAgentCtx.pendingSlot = { kind: "record_cash_tx", txType, amount: 0, category: cat, description: cleanDesc };
+      return {
+        exactMatch: true,
+        text: `Siap mencatat **${isInc ? "Pemasukan" : "Pengeluaran"} Kas** (${cleanDesc || cat}). Berapa nominal rupiahnya?`,
+        followUps: [
+          { label: "Rp 50.000", q: "50rb" },
+          { label: "Rp 100.000", q: "100rb" },
+          { label: "Rp 200.000", q: "200rb" }
+        ]
+      };
+    }
+    const finalDesc = cleanDesc || (isInc ? "Pemasukan Kas RT 15" : "Pengeluaran Operasional RT 15");
+    return {
+      exactMatch: true,
+      text: `Siap mencatat **${isInc ? "Pemasukan" : "Pengeluaran"} Kas RT 15**:\n• Nominal: **${formatRp(amt)}**\n• Kategori: **${cat}**\n• Keterangan: ${finalDesc}\n\nKlik tombol di bawah untuk menyimpan:`,
+      confirmAction: { type: "record_cash_tx", transaction_type: txType, amount: amt, category: cat, description: finalDesc, label: `Simpan ${isInc ? "Pemasukan" : "Pengeluaran"} ${formatRp(amt)}` }
+    };
+  }
+
+  // [P2 — Batch Approval Semua Transaksi Pending via Chat/Suara]
+  if (/\b(setujui|approve|acc)\b/i.test(q) && /\b(semua|pending|transaksi)\b/i.test(q)) {
+    const canApp = ["developer_admin", "pak_rt", "wakil_rt"].includes(state.profile?.role || "");
+    if (!canApp) {
+      return { exactMatch: true, text: "Akses persetujuan transaksi hanya untuk **Developer, Pak RT, dan Wakil RT**." };
+    }
+    const enriched = enrichCashTransactions();
+    const pend = enriched.filter(t => t._approval === "pending");
+    if (!pend.length) {
+      return { exactMatch: true, text: "✅ Tidak ada transaksi pending saat ini — semua transaksi kas sudah beres!" };
+    }
+    const totalPend = pend.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+    const listStr = pend.slice(0, 6).map(t => `• ${t._title}: **${formatRp(t.amount)}** (${t._method})`).join("\n");
+    return {
+      exactMatch: true,
+      text: `Ditemukan **${pend.length} transaksi pending** (total **${formatRp(totalPend)}**):\n${listStr}${pend.length > 6 ? `\n...dan ${pend.length - 6} lainnya.` : ""}\n\nKlik konfirmasi di bawah untuk menyetujui semuanya sekaligus:`,
+      confirmAction: { type: "approve_all_pending", ids: pend.map(t => t.id), count: pend.length, label: `Setujui Semua (${pend.length} Transaksi)` }
+    };
+  }
+
+  // [P2 — Smart Filtered Export via Chat/Suara (e.g. "export warga janda ke pdf")]
+  if (/\b(export|ekspor|unduh|download)\b/i.test(q) && /\b(janda|kontrak|kost|permanen|pindah|meninggal)\b/i.test(q)) {
+    const picked = [];
+    if (/\bpermanen\b/i.test(q)) picked.push("Permanen");
+    if (/\bkontrak\b/i.test(q)) picked.push("Kontrak");
+    if (/\bkost\b/i.test(q)) picked.push("Kost");
+    if (/\bjanda\b/i.test(q)) picked.push("Janda");
+    if (/\bpindah\b/i.test(q)) picked.push("Pindah Domisili");
+    if (/\bmeninggal\b/i.test(q)) picked.push("Meninggal Dunia");
+    if (picked.length) {
+      state.nawakExportStatuses = picked;
+      const fmtAuto = /\bpdf\b/i.test(q) ? "pdf" : (/\b(excel|xlsx)\b/i.test(q) ? "excel" : (/\b(word|docx)\b/i.test(q) ? "word" : (/\bpng\b/i.test(q) ? "png" : "")));
+      if (fmtAuto) {
+        setTimeout(() => exportWargaByFormat(fmtAuto, state.nawakExportCols, picked), 250);
+        return {
+          exactMatch: true,
+          openExport: true,
+          text: `Siap! Filter status otomatis diatur ke **${picked.join(", ")}** dan export **${fmtAuto.toUpperCase()}** langsung dijalankan.`
+        };
+      }
+      return {
+        exactMatch: true,
+        openExport: true,
+        text: `Filter status export sudah saya atur otomatis ke **${picked.join(", ")}**. Silakan pilih format file di bawah:`
+      };
+    }
+  }
+
+  // [P3 — Proactive Daily Briefing RT 15]
+  if (/\b(briefing|ringkasan\s+hari\s+ini|kondisi\s+hari\s+ini|apa\s+yang\s+perlu|status\s+rt\s+17\s+hari\s+ini)\b/i.test(q)) {
+    const enriched = enrichCashTransactions();
+    const pendCount = enriched.filter(t => t._approval === "pending").length;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const rondaToday = (RONDA_DES_2026 || []).find(r => r.event_date === todayIso) || (RONDA_DES_2026 || [])[0];
+    const mmdd = todayIso.slice(5);
+    const bdayToday = state.residents.filter(r => r.is_active && r.family_relationship === "Kepala Keluarga" && String(r.birth_date || "").slice(5) === mmdd);
+    const compliance = sumSnap.totalKK > 0 ? Math.round((sumSnap.greenCount / sumSnap.totalKK) * 100) : 0;
+    const noNik = state.residents.filter(r => r.is_active && (!r.nik || !/^\d{15,16}$/.test(String(r.nik).trim()))).length;
+    return {
+      exactMatch: true,
+      text: `**Briefing Harian Cerdas RT 15 (${new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}):**\n• **Kas & Approval:** Saldo **${formatRp(sumSnap.kasBalance)}** • Menunggu ACC: **${pendCount} transaksi**\n• **Kepatuhan Iuran:** **${sumSnap.greenCount}/${sumSnap.totalKK} KK Lunas (${compliance}%)** • Sisa Piutang: **${formatRp(sumSnap.totalTunggakan)}**\n• **Ronda Terdekat:** ${rondaToday ? `${rondaToday.title} (${rondaToday.event_date}, 22:30 WIB)` : "Belum terjadwal"}\n• **Ulang Tahun Hari Ini:** ${bdayToday.length ? bdayToday.map(x => x.full_name).join(", ") : "Tidak ada"}\n• **Kebersihan Data:** ${noNik} warga aktif belum memiliki NIK 16 digit.`,
+      followUps: [
+        ...(pendCount > 0 ? [{ label: `ACC ${pendCount} Pending`, q: "Setujui semua transaksi pending" }] : []),
+        { label: "Draft Laporan Kas", q: "Buatkan draft laporan keuangan kas RT 15 lengkap" },
+        { label: "Audit Lengkap", q: "Audit lengkap kesehatan data RT 15" }
+      ]
+    };
+  }
+
+  // [P3 — Audit Lengkap Kesehatan Data & Keuangan RT 15]
+  if (/\b(audit\s+lengkap|audit\s+otomatis|kesehatan\s+data|cek\s+semua\s+data)\b/i.test(q)) {
+    const grouped = getSortedWargaGrouped();
+    const activeRes = state.residents.filter(r => r.is_active);
+    const noNik = activeRes.filter(r => !r.nik || !/^\d{15,16}$/.test(String(r.nik).trim())).length;
+    const noHp = state.households.filter(h => h.is_active && !state.residents.some(r => r.household_id === h.id && r.is_active && r.phone)).length;
+    const enriched = enrichCashTransactions();
+    const pendCount = enriched.filter(t => t._approval === "pending").length;
+    const compliance = sumSnap.totalKK > 0 ? Math.round((sumSnap.greenCount / sumSnap.totalKK) * 100) : 0;
+    return {
+      exactMatch: true,
+      text: `**Audit Lengkap Kesehatan Sistem RT 15:**\n1. **Kependudukan:** ${grouped.length} KK (${activeRes.length} warga aktif) • Tanpa NIK valid: **${noNik} warga** • Tanpa No. HP: **${noHp} KK**.\n2. **Keuangan & Approval:** Saldo Kas **${formatRp(sumSnap.kasBalance)}** • Menunggu Approval: **${pendCount} transaksi**.\n3. **Kepatuhan Iuran:** **${sumSnap.greenCount}/${sumSnap.totalKK} KK Lunas (${compliance}%)** • Sisa Piutang: **${formatRp(sumSnap.totalTunggakan)}**.`,
+      followUps: [
+        { label: "Audit Klasifikasi KK", q: "Audit klasifikasi KK sesuai aturan RT 15" },
+        { label: "Audit Transaksi Pending", q: "Cek transaksi pending approval" },
+        { label: "Paket Laporan Rapat", q: "Siapkan bahan laporan lengkap rapat RT" }
+      ]
+    };
   }
 
   // [Skill 21] Multi-turn working memory: revisi draft terakhir (ganti jam/tempat/tanggal/bahasa/catatan)
@@ -3508,29 +4045,50 @@ function generateNawakAIReply(query) {
     };
   }
 
-  // [Skill 8] Catat Pembayaran via Bahasa Natural / Suara
+  // [Skill 8 + P2 Slot-Filling & Disambiguation] Catat Pembayaran via Bahasa Natural / Suara
   const payCmdMatch = rawOrigQ.match(/(?:catat|input|bayar(?:kan)?|lunasi)\s+(?:iuran|pembayaran|tagihan)?\s*(?:pak|bu|bapak|ibu|sdr)?\s*([A-Za-z\s.]+?)(?:\s+(?:lunas|rp|sebesar|\d+|via|pakai|qris|tunai|transfer)|$)/i);
-  if (payCmdMatch && /\b(catat|bayar|lunasi)\b/i.test(q) && /\b(qris|tunai|transfer|lunas|\d+\s*(?:rb|ribu|k|000))\b/i.test(q)) {
-    const kw = payCmdMatch[1].trim().toLowerCase();
-    const targetHH = state.households.find(h => h.is_active && getHeadNameForHousehold(h.id).toLowerCase().includes(kw));
+  if (payCmdMatch && /\b(catat|bayar|lunasi)\b/i.test(q) && (/\b(qris|tunai|transfer|lunas|\d+\s*(?:rb|ribu|k|000))\b/i.test(q) || /\b(iuran|tagihan)\b/i.test(q))) {
+    const kw = payCmdMatch[1].trim();
+    const cands = findMatchingHouseholds(kw).filter(x => x.h.is_active);
+    if (cands.length > 1 && cands[0].score < 100 && (cands[0].score - cands[1].score) < 15) {
+      const topC = cands.slice(0, 4);
+      return {
+        exactMatch: true,
+        text: `Ada **${topC.length} KK** yang namanya mirip dengan **"${kw}"**. Pilih KK yang dimaksud:`,
+        followUps: topC.map(c => ({ label: c.headName, q: `Catat bayar ${c.headName} lunas` }))
+      };
+    }
+    const targetHH = cands[0] ? cands[0].h : null;
     if (targetHH) {
       const hName = getHeadNameForHousehold(targetHH.id);
       const sum = getHouseholdDuesSummary(targetHH.id);
+      const hasMethod = /\b(qris|tunai|transfer)\b/i.test(q);
       const method = /qris/i.test(q) ? "QRIS" : (/transfer/i.test(q) ? "Transfer" : "Tunai");
       let amt = sum.remaining;
-      const amtM = q.match(/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k)?/);
-      if (amtM && !/\blunas\b/i.test(q)) {
-        const num = Number(amtM[1].replace(",", "."));
-        amt = amtM[2] ? Math.round(num * 1000) : (num < 1000 ? num * 1000 : num);
-      }
+      const parsedAmt = parseIndonesianAmount(rawOrigQ);
+      if (parsedAmt > 0 && !/\blunas\b/i.test(q)) amt = parsedAmt;
       if (sum.remaining <= 0) {
+        rememberNawakEntity(targetHH.id, null, hName);
         return { exactMatch: true, text: `KK **${hName}** sudah **LUNAS** untuk periode ${MONTHS[state.periodMonth - 1]} ${state.periodYear}.` };
       }
-      nawakAgentCtx.lastHouseholdId = targetHH.id;
+      rememberNawakEntity(targetHH.id, null, hName);
+      const finalAmt = Math.min(amt, sum.remaining);
+      if (!hasMethod) {
+        nawakAgentCtx.pendingSlot = { kind: "record_payment_method", householdId: targetHH.id, headName: hName, amount: finalAmt };
+        return {
+          exactMatch: true,
+          text: `KK **${hName}** sisa tagihan **${formatRp(finalAmt)}** (${sum.unpaidCats.join(", ")}). Pembayarannya memakai metode apa?`,
+          followUps: [
+            { label: "Tunai", q: "Tunai" },
+            { label: "QRIS", q: "QRIS" },
+            { label: "Transfer", q: "Transfer" }
+          ]
+        };
+      }
       return {
         exactMatch: true,
-        text: `Siap catat pembayaran iuran:\n• Kepala Keluarga: **${hName}**\n• Nominal: **${formatRp(Math.min(amt, sum.remaining))}** (${method})\n• Sisa tagihan saat ini: ${formatRp(sum.remaining)} (${sum.unpaidCats.join(", ")})\n\nKlik tombol konfirmasi di bawah untuk menyimpan:`,
-        confirmAction: { type: "record_payment", householdId: targetHH.id, headName: hName, amount: Math.min(amt, sum.remaining), method, label: `Simpan Bayar ${formatRp(Math.min(amt, sum.remaining))}` }
+        text: `Siap catat pembayaran iuran:\n• Kepala Keluarga: **${hName}**\n• Nominal: **${formatRp(finalAmt)}** (${method})\n• Sisa tagihan saat ini: ${formatRp(sum.remaining)} (${sum.unpaidCats.join(", ")})\n\nKlik tombol konfirmasi di bawah untuk menyimpan:`,
+        confirmAction: { type: "record_payment", householdId: targetHH.id, headName: hName, amount: finalAmt, method, label: `Simpan Bayar ${formatRp(finalAmt)} (${method})` }
       };
     }
   }
@@ -3546,6 +4104,7 @@ function generateNawakAIReply(query) {
       text: `**Audit Transaksi Kas RT 15:**\n• Menunggu Approval: **${pend.length} transaksi**\n${pTxt}\n• Transaksi approved tanpa lampiran bukti foto: **${noRec.length} transaksi**`,
       followUps: [
         { label: "Ringkasan Kas", q: "Rangkum kondisi kas & pemasukan RT bulan ini" },
+    { label: "Pertumbuhan Kas", q: "Rekap pertumbuhan kas bulan ini dibanding bulan lalu" },
         { label: "Draft Laporan Kas", q: "Buatkan draft laporan keuangan kas RT 15 lengkap" }
       ]
     };
@@ -3572,6 +4131,58 @@ function generateNawakAIReply(query) {
       text: `**Simulasi Proyeksi Kas RT 15:**\n• Saldo Kas Saat Ini: **${formatRp(sumSnap.kasBalance)}**\n${notes.map(x => `• ${x}`).join("\n")}\n• **Proyeksi Saldo Akhir:** **${formatRp(projSaldo)}**`,
       followUps: [
         { label: "Ringkasan Kas", q: "Rangkum kondisi kas & pemasukan RT bulan ini" },
+    { label: "Pertumbuhan Kas", q: "Rekap pertumbuhan kas bulan ini dibanding bulan lalu" },
+        { label: "Cek Tunggakan", q: "Siapa saja KK yang belum lunas bulan ini?" }
+      ]
+    };
+  }
+
+  // [Skill 25] Rekap Pertumbuhan Kas Bulanan (Perbandingan Bulan Lalu / MoM)
+  if (/\b(pertumbuhan|perbandingan|bandingkan|banding|naik|turun|tren|growth|mom|bulan\s+lalu)\b/i.test(q) && /\b(kas|keuangan|pemasukan|pengeluaran|saldo|rekap)\b/i.test(q)) {
+    const curM = Number(state.periodMonth);
+    const curY = Number(state.periodYear);
+    const prevM = curM === 1 ? 12 : curM - 1;
+    const prevY = curM === 1 ? curY - 1 : curY;
+    const txPool = (state.yearCashTransactions && state.yearCashTransactions.length) ? state.yearCashTransactions : (state.cashTransactions || []);
+    const approvedTx = txPool.filter(t => (t.approval_status || "approved") === "approved" && t.status !== "voided");
+
+    const sumForMonth = (m, y) => {
+      let inc = 0, exp = 0, cnt = 0;
+      const prefix = `${y}-${String(m).padStart(2, "0")}`;
+      approvedTx.forEach(t => {
+        if (String(t.transaction_date || "").startsWith(prefix)) {
+          cnt++;
+          const amt = Number(t.amount || 0);
+          if (t.transaction_type === "income") inc += amt;
+          else if (t.transaction_type === "expense") exp += amt;
+        }
+      });
+      return { inc, exp, net: inc - exp, cnt };
+    };
+
+    const cur = sumForMonth(curM, curY);
+    const prev = sumForMonth(prevM, prevY);
+    const diffInc = cur.inc - prev.inc;
+    const diffExp = cur.exp - prev.exp;
+    const diffNet = cur.net - prev.net;
+    const pctStr = (diff, base) => {
+      if (base === 0) return diff > 0 ? "+100%" : (diff < 0 ? "-100%" : "0%");
+      const pVal = Math.round((diff / base) * 100);
+      return `${pVal >= 0 ? "+" : ""}${pVal}%`;
+    };
+    const arrow = (d) => d > 0 ? "📈 Naik" : (d < 0 ? "📉 Turun" : "➖ Tetap");
+    const curLbl = `${MONTHS[curM - 1]} ${curY}`;
+    const prevLbl = `${MONTHS[prevM - 1]} ${prevY}`;
+
+    const draft = `*REKAP PERTUMBUHAN KAS RT 15 / RW 03 KEBONAGUNG*\n*Perbandingan ${curLbl} vs ${prevLbl}*\n\n*1. PEMASUKAN KAS*\n• ${curLbl}: *${formatRp(cur.inc)}*\n• ${prevLbl}: ${formatRp(prev.inc)}\n• Perubahan: ${arrow(diffInc)} *${diffInc >= 0 ? "+" : "-"}${formatRp(Math.abs(diffInc))}* (${pctStr(diffInc, prev.inc)})\n\n*2. PENGELUARAN KAS*\n• ${curLbl}: *${formatRp(cur.exp)}*\n• ${prevLbl}: ${formatRp(prev.exp)}\n• Perubahan: ${arrow(diffExp)} *${diffExp >= 0 ? "+" : "-"}${formatRp(Math.abs(diffExp))}* (${pctStr(diffExp, prev.exp)})\n\n*3. ARUS KAS BERSIH (NET CASHFLOW)*\n• ${curLbl}: *${cur.net >= 0 ? "+" : "-"}${formatRp(Math.abs(cur.net))}* (${cur.cnt} transaksi)\n• ${prevLbl}: ${prev.net >= 0 ? "+" : "-"}${formatRp(Math.abs(prev.net))} (${prev.cnt} transaksi)\n• Selisih Bersih: *${diffNet >= 0 ? "+" : "-"}${formatRp(Math.abs(diffNet))}*\n• Saldo Akhir Kas Saat Ini: *${formatRp(sumSnap.kasBalance)}*\n\n*Pengurus RT 15 / RW 03 Kebonagung*`;
+    nawakAgentCtx.lastDraft = draft;
+    return {
+      exactMatch: true,
+      isAnnouncementSkill: true,
+      text: `**Rekap Pertumbuhan Kas Bulanan (${curLbl} vs ${prevLbl}):**\n• Pemasukan: **${formatRp(cur.inc)}** vs ${formatRp(prev.inc)} (${arrow(diffInc)} ${pctStr(diffInc, prev.inc)})\n• Pengeluaran: **${formatRp(cur.exp)}** vs ${formatRp(prev.exp)} (${arrow(diffExp)} ${pctStr(diffExp, prev.exp)})\n• Arus Kas Bersih: **${cur.net >= 0 ? "+" : "-"}${formatRp(Math.abs(cur.net))}** (bulan lalu ${prev.net >= 0 ? "+" : "-"}${formatRp(Math.abs(prev.net))})\n• Saldo Kas Akhir: **${formatRp(sumSnap.kasBalance)}**`,
+      copyText: draft,
+      followUps: [
+        { label: "Draft Laporan Kas Lengkap", q: "Buatkan draft laporan keuangan kas RT 15 lengkap" },
         { label: "Cek Tunggakan", q: "Siapa saja KK yang belum lunas bulan ini?" }
       ]
     };
@@ -3617,13 +4228,30 @@ function generateNawakAIReply(query) {
 
   // [Skill 15] Jadwal Ronda Malam RT 15 (Desember 2026)
   if (/\b(ronda|siskamling|jaga malam|pos kamling|regu)\b/i.test(q) && !/\b(buatkan|draft|pengumuman)\b/i.test(q)) {
-    const tglM = q.match(/(\d{1,2})\s*(?:des|desember)?/i);
-    const targetDay = tglM ? String(Math.min(31, Math.max(1, Number(tglM[1])))).padStart(2, "0") : "01";
-    const targetIso = `2026-12-${targetDay}`;
+    const tglM = q.match(/(?:tanggal|tgl)?\s*(\d{1,2})\s*(?:des|desember)?/i);
+    let targetIso = "";
+    let dateNote = "";
+    if (tglM) {
+      const targetDay = String(Math.min(31, Math.max(1, Number(tglM[1])))).padStart(2, "0");
+      targetIso = `2026-12-${targetDay}`;
+    } else {
+      const offsetDays = /\bbesok\b/i.test(q) ? 1 : (/\blusa\b/i.test(q) ? 2 : 0);
+      const jktDate = new Date(Date.now() + 7 * 3600000 + offsetDays * 86400000);
+      const y = jktDate.getUTCFullYear();
+      const m = String(jktDate.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(jktDate.getUTCDate()).padStart(2, "0");
+      const candIso = `${y}-${m}-${d}`;
+      if (y === 2026 && m === "12") {
+        targetIso = candIso;
+      } else {
+        targetIso = "2026-12-01";
+        dateNote = `*(Catatan: tanggal ${candIso} di luar periode jadwal Desember 2026; berikut jadwal pembuka 1 Desember 2026)*\n\n`;
+      }
+    }
     const foundRonda = RONDA_DES_2026.find(r => r.event_date === targetIso) || RONDA_DES_2026[0];
     return {
       exactMatch: true,
-      text: `**${foundRonda.title}** (${foundRonda.event_date})\n${foundRonda.description}`,
+      text: `${dateNote}**${foundRonda.title}** (${foundRonda.event_date})\n${foundRonda.description}`,
       followUps: [
         { label: "Buat Pengumuman Ronda WA", q: "Buatkan draft pengumuman jadwal ronda malam ini untuk grup WA RT 15" },
         { label: "Lihat Agenda RT", q: "Jadwal kegiatan bulan ini apa saja?" }
@@ -4713,7 +5341,7 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
   const conclusionText = `Kesimpulan Laporan Export: Total ${stats.totalKK} KK (${stats.totalWarga} warga) yang diekspor — terdiri dari ${concParts.join(", ")}.`;
 
   if (fmt === "excel") {
-    if (!window.XLSX) return showToast("Library Excel sedang dimuat.");
+    if (!window.XLSX) { showToast("Memuat modul Excel..."); try { await loadScriptOnce("https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"); } catch (_) { return showToast("Gagal memuat modul Excel. Periksa koneksi."); } }
     const rows = [
       ["LAPORAN DATA WARGA — RT 15 / RW 03 KEBONAGUNG"],
       ["Desa Kebonagung, Kec. Pakisaji, Kab. Malang"],
@@ -4767,7 +5395,7 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
   }
 
   if (fmt === "pdf") {
-    if (!window.jspdf || !window.jspdf.jsPDF) return showToast("Library PDF sedang dimuat.");
+    if (!window.jspdf || !window.jspdf.jsPDF) { showToast("Memuat modul PDF..."); try { await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"); } catch (_) { return showToast("Gagal memuat modul PDF. Periksa koneksi."); } }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     const totalPdfW = activeCols.reduce((s, c) => s + c.pdfW, 0);
@@ -5049,6 +5677,7 @@ function showNawakAIModal(originX = 0, originY = 120) {
     { label: "Export Warga", q: "__OPEN_EXPORT__", icon: IC.download("w-5 h-5 text-emerald-600"), bg: "rgba(16,185,129,0.12)" }
   ];
   const homeExtraPills = [
+    { label: "Briefing Hari Ini", q: "Briefing kondisi RT 15 hari ini" },
     { label: "Kartu Ultah", q: "__OPEN_BDAY_CARD__" },
     { label: "Pengumuman WA", q: "Buatkan draf pengumuman iuran & rapat untuk grup WA" }
   ];
@@ -5056,6 +5685,7 @@ function showNawakAIModal(originX = 0, originY = 120) {
     { label: "Data Janda", q: "Ada berapa janda di RT 15?" },
     { label: "Export Warga", q: "__OPEN_EXPORT__" },
     { label: "Ringkasan Kas", q: "Rangkum kondisi kas & pemasukan RT bulan ini" },
+    { label: "Pertumbuhan Kas", q: "Rekap pertumbuhan kas bulan ini dibanding bulan lalu" },
     { label: "Cek Tunggakan", q: "Siapa saja KK yang belum lunas bulan ini?" },
     { label: "Kartu Ultah", q: "__OPEN_BDAY_CARD__" }
   ];
@@ -5156,7 +5786,7 @@ function showNawakAIModal(originX = 0, originY = 120) {
             ` : ''}
             ${!m.isLoading ? `
               <div class="nawak-step-enter px-0.5 text-[13px] leading-relaxed space-y-2.5" style="color: var(--ng-text);">
-                <p class="whitespace-pre-line m-0">${String(m.text || "").trim()}</p>
+                <p class="whitespace-pre-line m-0">${formatNawakMarkdown(m.text)}</p>
                 ${(m.copyText || m.openBdayCard || m.openExport || m.confirmImport || m.confirmAction) ? `
                   <div class="flex flex-wrap gap-1.5 pt-1">
                     ${m.confirmImport ? `<button type="button" data-nawak-do-import="1" class="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-semibold inline-flex items-center gap-1">${IC.check("w-3 h-3")} Jalankan Import Sekarang</button>` : ''}
@@ -5327,14 +5957,9 @@ function showNawakAIModal(originX = 0, originY = 120) {
           </div>
 
           <div class="nawak-gemini-modal w-full rounded-[28px] border px-4 pt-4 pb-3.5 sm:px-5 flex flex-col h-[min(calc(var(--vvh,100dvh)-84px),680px)] shadow-2xl overflow-hidden box-border" style="border-color: var(--ng-border);">
-            <div class="flex items-center justify-between pb-2.5 shrink-0">
-              <div class="flex items-center gap-1.5 z-10">
-                <button id="nawakClearBtn" type="button" title="Kembali ke Beranda NawakAI" class="w-8 h-8 rounded-full flex items-center justify-center transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.refresh("w-4 h-4")}</button>
-                <button id="nawakTtsToggleBtn" type="button" title="${__wkNawakTtsOn ? 'Feedback Suara: Aktif (Ketuk untuk mematikan)' : 'Feedback Suara: Mati (Ketuk untuk mengaktifkan)'}" class="w-8 h-8 rounded-full flex items-center justify-center transition" style="background: ${__wkNawakTtsOn ? 'rgba(29,78,216,0.14)' : 'var(--ng-user-bubble)'}; color: ${__wkNawakTtsOn ? '#1d4ed8' : 'var(--ng-done-step)'};">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${__wkNawakTtsOn ? '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="m23 9-6 6M17 9l6 6"/>'}</svg>
-                </button>
-              </div>
-              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border mt-3" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-done-step);">NawakAI • RT 15</span>
+            <div class="relative flex items-center justify-between pb-3 shrink-0 min-h-[42px]">
+              <button id="nawakClearBtn" type="button" title="Kembali ke Beranda NawakAI" class="w-8 h-8 rounded-full flex items-center justify-center z-10 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.refresh("w-4 h-4")}</button>
+              <span class="absolute left-1/2 -translate-x-1/2 top-2.5 pointer-events-none text-[11px] font-bold px-2.5 py-0.5 rounded-full border whitespace-nowrap" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-done-step);">NawakAI • RT 15</span>
               <button id="closeModalBtn" type="button" title="Tutup Popup" class="w-8 h-8 rounded-full flex items-center justify-center z-10 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.close("w-4 h-4")}</button>
             </div>
 
@@ -5714,7 +6339,15 @@ function showNawakAIModal(originX = 0, originY = 120) {
               const cmp = formatCompareResult(detectedRows, String(data.reply || `Dokumen "${att.name}" wis diwoco & dirangkum!`), extractedText);
               state.nawakMessages[msgIdx] = { role: "assistant", isLoading: false, steps, text: cmp.text, confirmImport: cmp.confirmImport, copyText: String(data.copyText || "") };
             } else {
-              state.nawakMessages[msgIdx] = { role: "assistant", isLoading: false, steps, text: String(data.reply || `Dokumen "${att.name}" wis dianalisis, Sam.`), copyText: String(data.copyText || "") };
+              const ocrRec = extractReceiptDetailsFromText(String(data.reply || "") + "\n" + extractedText, att.name);
+              state.nawakMessages[msgIdx] = {
+                role: "assistant",
+                isLoading: false,
+                steps,
+                text: String(data.reply || `Dokumen "${att.name}" wis dianalisis, Sam.`) + (ocrRec ? `\n\n🧾 **Deteksi Nota/Struk Otomatis:**\n• Jenis: **${ocrRec.transaction_type === "income" ? "Pemasukan" : "Pengeluaran"}**\n• Nominal: **${formatRp(ocrRec.amount)}**\n• Kategori: ${ocrRec.category}` : ""),
+                copyText: String(data.copyText || ""),
+                confirmAction: ocrRec ? { type: "record_cash_tx", ...ocrRec, label: `Catat ${ocrRec.transaction_type === "income" ? "Pemasukan" : "Pengeluaran"} ${formatRp(ocrRec.amount)} ke Kas RT` } : null
+              };
             }
             handled = true;
           }
@@ -5741,9 +6374,11 @@ function showNawakAIModal(originX = 0, originY = 120) {
               const cmp = formatCompareResult(localRows, buildLocalFileSummary(att, extractedText), extractedText);
               state.nawakMessages[msgIdx] = { role: "assistant", isLoading: false, steps, text: cmp.text, confirmImport: cmp.confirmImport };
             } else if (extractedText && extractedText.trim().length > 5) {
+              const ocrRec = extractReceiptDetailsFromText(extractedText, att.name);
               state.nawakMessages[msgIdx] = {
                 role: "assistant", isLoading: false, steps,
-                text: buildLocalFileSummary(att, extractedText)
+                text: buildLocalFileSummary(att, extractedText) + (ocrRec ? `\n\n🧾 **Deteksi Nota/Struk Otomatis:**\n• Jenis: **${ocrRec.transaction_type === "income" ? "Pemasukan" : "Pengeluaran"}**\n• Nominal: **${formatRp(ocrRec.amount)}**\n• Kategori: ${ocrRec.category}` : ""),
+                confirmAction: ocrRec ? { type: "record_cash_tx", ...ocrRec, label: `Catat ${ocrRec.transaction_type === "income" ? "Pemasukan" : "Pengeluaran"} ${formatRp(ocrRec.amount)} ke Kas RT` } : null
               };
             } else {
               state.nawakMessages[msgIdx] = {
@@ -5817,7 +6452,7 @@ function showNawakAIModal(originX = 0, originY = 120) {
           steps: [...steps],
           text: ans.text,
           copyText: ans.copyText,
-          ...(ans.copyText ? (() => { nawakAgentCtx.lastDraft = ans.copyText; return {}; })() : {}),
+          ...(ans.copyText ? (() => { nawakAgentCtx.lastDraft = ans.copyText; nawakAgentCtx.pendingSlot = { kind: 'refine_draft' }; return {}; })() : {}),
           isGemini: !!ans.isGemini,
           openBdayCard: !!ans.openBdayCard,
           confirmAction: ans.confirmAction || null,
@@ -6308,6 +6943,44 @@ function showNawakAIModal(originX = 0, originY = 120) {
           renderNawakBody();
           render();
           return;
+        } else if (act.type === "approve_all_pending") {
+          const ids = Array.isArray(act.ids) ? act.ids : [];
+          if (!ids.length) throw new Error("Tidak ada transaksi pending.");
+          const { error: appErr } = await db.from("cash_transactions").update({
+            approval_status: "approved",
+            approved_by: state.profile?.id,
+            approved_at: new Date().toISOString()
+          }).in("id", ids);
+          if (appErr) throw appErr;
+          await loadAllData(true);
+          state.nawakMessages.push({ role: "assistant", text: `✅ Berhasil menyetujui **${ids.length} transaksi pending** sekaligus! Saldo kas RT 15 sudah diperbarui.` });
+          saveNawakHistory(state.profile?.id, state.nawakMessages);
+          renderNawakBody();
+          render();
+          return;
+        } else if (act.type === "record_cash_tx") {
+          const isApprRole = ["developer_admin", "pak_rt", "wakil_rt"].includes(state.profile?.role || "");
+          const todayIso = act.transaction_date || new Date().toISOString().slice(0, 10);
+          const refNo = "NWK-KAS-" + Date.now().toString(36).toUpperCase();
+          const { error: txErr } = await db.from("cash_transactions").insert({
+            transaction_type: act.transaction_type || "expense",
+            category: act.category || "Operasional RT",
+            amount: Number(act.amount || 0),
+            transaction_date: todayIso,
+            payment_method: act.method || "Tunai",
+            reference_number: refNo,
+            description: `${act.description || "Transaksi Kas"} [Petugas: ${state.profile?.full_name || "Admin RT"}]`,
+            created_by: state.profile?.id,
+            approval_status: isApprRole ? "approved" : "pending",
+            approved_by: isApprRole ? state.profile?.id : null
+          });
+          if (txErr) throw txErr;
+          await loadAllData(true);
+          state.nawakMessages.push({ role: "assistant", text: `✅ ${act.transaction_type === "income" ? "Pemasukan" : "Pengeluaran"} **${formatRp(act.amount)}** (${act.category} — ${act.description}) berhasil dicatat (${isApprRole ? "Approved" : "Pending Approval"})!` });
+          saveNawakHistory(state.profile?.id, state.nawakMessages);
+          renderNawakBody();
+          render();
+          return;
         } else if (act.type === "add_event") {
           const { error: evErr } = await db.from("community_events").insert({
             title: act.title,
@@ -6426,6 +7099,13 @@ function showNawakAIModal(originX = 0, originY = 120) {
     };
     if (inp) {
       inp.addEventListener("input", () => { draftInputText = inp.value; autoGrowNawak(); });
+      inp.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+          ev.preventDefault();
+          const btn = document.getElementById("nawakSendBtn");
+          if (btn) btn.click();
+        }
+      });
       autoGrowNawak();
     }
     const sendBtnEl = document.getElementById("nawakSendBtn");
@@ -6612,8 +7292,8 @@ function showResetOtherPassModal() {
       <div class="flex items-center justify-between"><h3 class="text-base font-bold text-slate-800">Ubah Password User Lain</h3><button id="closeModalBtn" type="button">✕</button></div>
       <div class="space-y-2 text-xs">
         <select id="targetUserEmail" class="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white">
-          <option value="ketua@wargakita.id">Pak RT (ketua@wargakita.id)</option>
-          <option value="wakil@wargakita.id">Wakil RT (wakil@wargakita.id)</option>
+          <option value="pakrt15@wargakita.id">Pak RT (pakrt15@wargakita.id)</option>
+          <option value="wakilrt15@wargakita.id">Wakil RT (wakilrt15@wargakita.id)</option>
           <option value="sekretaris@wargakita.id">Sekretaris RT (sekretaris@wargakita.id)</option>
           <option value="bendahara@wargakita.id">Bendahara Umum (bendahara@wargakita.id)</option>
           <option value="developer@wargakita.id">Novan Hermawan — 17 Agustusan (developer@wargakita.id)</option>
@@ -7725,7 +8405,7 @@ function showShareReportModal() {
         <button id="closeModalBtn" type="button">✕</button>
       </div>
       <div class="rounded-2xl border border-slate-200 bg-[#f8fafc] p-4 space-y-2.5 text-xs">
-        <p class="font-bold text-[#1d4ed8]">WargaKITA • RT 15 / RW 03 Kebonagung (${MONTHS[state.periodMonth - 1]} ${state.periodYear})</p>
+        <p class="font-bold text-[#1d4ed8]">WargaKITA 15 • RT 15 / RW 03 Kebonagung (${MONTHS[state.periodMonth - 1]} ${state.periodYear})</p>
         <div class="grid grid-cols-2 gap-1.5 text-[11px]">
           <div class="p-2 rounded-xl bg-white border border-slate-200"><span class="text-slate-400 block">Saldo Awal</span><strong>${formatRp(state.openingBalance)}</strong></div>
           <div class="p-2 rounded-xl bg-white border border-slate-200"><span class="text-emerald-600 block">Total Pemasukan</span><strong class="text-emerald-700">${formatRp(s.income)}</strong></div>
@@ -8063,12 +8743,17 @@ function bindScreenEvents() {
         showNawakAIModal(ox, oy);
       }
     };
+    if (window.__wkNawakDragCleanup) { try { window.__wkNawakDragCleanup(); } catch (_) {} }
     nawakBtn.addEventListener("mousedown", onStart);
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onEnd);
     nawakBtn.addEventListener("touchstart", onStart, { passive: true });
     nawakBtn.addEventListener("touchmove", onMove, { passive: false });
     nawakBtn.addEventListener("touchend", onEnd);
+    window.__wkNawakDragCleanup = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onEnd);
+    };
   }
   const editOb = document.getElementById("editOpeningBtn"); if (editOb) editOb.onclick = showEditOpeningBalanceModal;
 
@@ -8150,7 +8835,18 @@ function bindScreenEvents() {
   const addWBtn = document.getElementById("openAddWargaBtn"); if (addWBtn) addWBtn.onclick = showAddWargaModal;
 
   const cs = document.getElementById("cashSearchInput");
-  if (cs) cs.oninput = (e) => { state.cashSearch = e.target.value; state.cashPage = 1; render(); const el = document.getElementById("cashSearchInput"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } };
+  if (cs) cs.oninput = (e) => {
+    state.cashSearch = e.target.value;
+    state.cashPage = 1;
+    clearTimeout(window.__wkCashSearchT);
+    window.__wkCashSearchT = setTimeout(() => {
+      const scY = window.scrollY;
+      render();
+      window.scrollTo(0, scY);
+      const el = document.getElementById("cashSearchInput");
+      if (el) { el.focus({ preventScroll: true }); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 110);
+  };
   document.querySelectorAll("[data-cash-status]").forEach(b => b.onclick = () => { state.cashStatusFilter = b.getAttribute("data-cash-status"); state.cashPage = 1; render(); });
   const ctf = document.getElementById("cashTypeFilterSel");
   if (ctf) ctf.onchange = (e) => { state.cashTypeFilter = e.target.value; state.cashPage = 1; render(); };

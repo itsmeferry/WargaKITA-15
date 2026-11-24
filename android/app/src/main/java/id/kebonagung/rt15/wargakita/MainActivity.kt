@@ -659,33 +659,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface
         fun scheduleRondaReminders(rondaJson: String) {
             Thread {
-                try {
-                    val am = getSystemService(ALARM_SERVICE) as AlarmManager
-                    val nowMs = System.currentTimeMillis()
-                    val arr = org.json.JSONArray(rondaJson)
-                    for (i in 0 until arr.length()) {
-                        val obj = arr.getJSONObject(i)
-                        val triggerMs = obj.optLong("triggerMs", 0L)
-                        if (triggerMs <= nowMs) continue
-                        val title = obj.optString("title", "Reminder Ronda Malam RT 15")
-                        val body = obj.optString("body", "")
-                        val reqCode = 7100 + i
-                        val intent = Intent(this@MainActivity, RondaReminderReceiver::class.java).apply {
-                            putExtra("title", title)
-                            putExtra("body", body)
-                            putExtra("notifId", reqCode)
-                        }
-                        val pi = PendingIntent.getBroadcast(
-                            this@MainActivity, reqCode, intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                        )
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pi)
-                        } else {
-                            am.set(AlarmManager.RTC_WAKEUP, triggerMs, pi)
-                        }
-                    }
-                } catch (_: Exception) {}
+                RondaReminderReceiver.saveAndSchedule(this@MainActivity, rondaJson)
             }.start()
         }
 
@@ -773,6 +747,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         notifHandler.removeCallbacks(notifRunnable)
+        try { speechRecognizer?.stopListening(); speechRecognizer?.cancel(); speechRecognizer?.destroy(); speechRecognizer = null } catch (_: Exception) {}
         try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
         super.onDestroy()
     }

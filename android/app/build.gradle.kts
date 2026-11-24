@@ -13,7 +13,7 @@ android {
         applicationId = "id.kebonagung.rt15.wargakita"
         minSdk = 23
         targetSdk = 35
-        versionCode = 11600
+        versionCode = 26
         versionName = "1.16.0"
 
         buildConfigField("String", "SUPABASE_URL", "\"https://bwufyctxcttqhrepsevw.supabase.co\"")

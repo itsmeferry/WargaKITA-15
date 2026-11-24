@@ -163,8 +163,8 @@ Khusus akun `developer@wargakita.id`, tersedia **Panel Khusus Developer** berdes
 | Role Database | Email Contoh | Lihat Warga | Tambah Warga | Edit / Hapus Warga | Catat Bayar & Kas | Approval Kas | Kalender & Saldo Awal | Baca & Rangkum File NawakAI | Aksi DB NawakAI | Panel Developer |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Developer Admin** | `developer@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Ya |
-| **Pak RT** | `ketua@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Tidak |
-| **Wakil RT** | `wakil@wargakita.id` | Ya | Ya | Hapus saja | Tidak | Ya | Kalender saja | Ya | Ya | Tidak |
+| **Pak RT** | `pakrt15@wargakita.id` | Ya | Ya | Ya | Ya (Auto-Approved) | Ya | Ya | Ya | Ya | Tidak |
+| **Wakil RT** | `wakilrt15@wargakita.id` | Ya | Ya | Hapus saja | Tidak | Ya | Kalender saja | Ya | Ya | Tidak |
 | **Bendahara RT** | `bendahara@wargakita.id`, `developer@wargakita.id`, `ahmadabin@wargakita.id`, `teguh@wargakita.id`, `jodik@wargakita.id` | Ya | Tidak | Tidak | Ya (Pending Approval) | Tidak | Tidak | Ya | Tidak | Tidak |
 | **Sekretaris RT** | `sekretaris@wargakita.id` | Ya | Ya | Tidak | Tidak | Tidak | Tidak | Ya | Tidak | Tidak |
 

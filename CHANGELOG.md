@@ -1,5 +1,10 @@
 ## [1.16.0] — 2026-11-24
 
+### NawakAI Agent AI Penuh (P1, P2 & P3 Seutuhnya)
+- **P1 — Otak Konteks & Memori Multi-Turn:** Resolusi kata ganti otomatis (*"alamatnya"*, *"no hpnya"*, *"tagihannya"*), pengiriman 12 riwayat pesan + `agentContext` ke Gemini Edge Function, serta *slot-filling* revisi draft otomatis tanpa perlu mengulang perintah.
+- **P2 — Eksekusi Interaktif & Batch Action:** *Tool chaining* multi-aksi (*cek tunggakan + langsung buat draft WA*), catat pemasukan/pengeluaran kas & pembayaran iuran via suara/chat dengan *slot-filling* nominal/metode, *Batch Approval* semua transaksi pending 1 ketuk (`approve_all_pending`), serta *Smart Filtered Export* otomatis per status warga (*"Export warga janda ke PDF"*).
+- **P3 — Proaktif, Audit & OCR:** **Briefing Harian Cerdas RT 15** (*saldo, pending approval, jadwal ronda, ulang tahun, kebersihan NIK*), Audit Lengkap Kesehatan Data & Keuangan, serta OCR foto nota/struk belanja untuk langsung dicatat ke Kas RT.
+
 ### Paket B: Optimasi Kesehatan Aplikasi + Feedback Suara & Aksi Cepat NawakAI
 - **Optimasi Kesehatan Aplikasi:**
   - *In-Flight Lock* (`__wkLoadInFlight`) pada `loadAllData()` untuk mencegah permintaan ganda ke Supabase saat refresh cepat.
@@ -8,6 +13,15 @@
 - **Feedback Suara (TTS) & Aksi Cepat NawakAI:**
   - Tombol toggle **Speaker (🔊 / 🔇)** di header popup NawakAI untuk membacakan jawaban otomatis dalam bahasa Indonesia (`AndroidBridge.speakJavanese` / Web Speech API), berhenti instan saat tombol Henti (`□`) atau tutup ditekan.
   - **Aksi Cepat (*Quick Action Navigation*)**: Perintah suara/teks (*"Buka Cash RT"*, *"Buka Data KK"*, *"Buka Kalender"*) langsung menampilkan tombol navigasi 1 ketuk ke halaman terkait.
+- **NLU 5 Lapis Anti-Typo & Slang Jawa-Malangan (`NawakAI`):**
+  - Menambahkan kamus normalisasi 150+ singkatan WA, slang Indonesia, dan dialek Jawa-Malangan (`brp`, `jnd`, `rondo`, `drg`, `byr`, `rnda`, `bsk`, `sopo`, `bkn`, dll).
+  - Algoritma **Damerau-Levenshtein (≤ 2)** otomatis mengoreksi typo kata perintah & nama warga RT 15 (*"kasiyati"* → *KASIJATI*) beserta catatan pemahaman otomatis.
+  - Pemahaman perintah singkat 1–2 kata (*"saldo?"*, *"kas saiki"*, *"ronda besok"*) dan **Disambiguasi Nama Ganda** (tombol pilih 1 ketuk bila ada beberapa warga bernama mirip seperti *"Agus"*).
+- **Perbaikan Bug & Optimasi Performa Menyeluruh:**
+  - **Lazy-Load Sejati jsPDF & XLSX:** Menghapus muatan paksa `jspdf` dan `xlsx` (~650 KB) dari `<head>` sehingga waktu buka awal aplikasi jauh lebih cepat; modul hanya dimuat saat tombol Export ditekan.
+  - **Migrasi Cache Media ke IndexedDB (`WargaKITA_MediaDB`):** Memindahkan penyimpanan lokal bukti transaksi (`wk_receipts_v1`) dan avatar (`wk_avatars_v1`) dari `localStorage` ke `IndexedDB` agar terbebas dari error kuota 5 MB (`QuotaExceededError`).
+  - **Perbaikan Kebocoran Event Listener (`__wkNawakDragCleanup`):** Membersihkan listener `mousemove`/`mouseup` pada `window` setiap `render()` agar animasi dan guliran tetap mulus dalam sesi panjang.
+  - **Debounced Search Cash RT (Anti Loncat Scroll):** Pencarian transaksi di tab Cash RT kini mempertahankan posisi guliran dan fokus ketik tanpa berkedip.
 - **Build Android (`v1.16.0`):** Menaikkan `versionCode = 26`, `versionName = "1.16.0"` di `android/app/build.gradle.kts`, `APP_VERSION` di HTML, dan `.github/workflows/build-apk.yml`.
 
 ## [1.15.3] — 2026-11-24
