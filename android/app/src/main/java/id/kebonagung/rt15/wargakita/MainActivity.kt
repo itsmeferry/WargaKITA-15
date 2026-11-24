@@ -11,7 +11,12 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.res.Configuration
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -131,21 +136,104 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private var nativeCameraForNawak: Boolean = false
+
     private val cameraPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) launchDirectCamera() else {
-            filePathCallback?.onReceiveValue(null)
-            filePathCallback = null
+            if (nativeCameraForNawak) {
+                nativeCameraForNawak = false
+                runOnUiThread {
+                    webView.evaluateJavascript("window.onNawakNativePhotoError && window.onNawakNativePhotoError('Izin kamera ditolak.');", null)
+                }
+            } else {
+                filePathCallback?.onReceiveValue(null)
+                filePathCallback = null
+            }
         }
     }
 
     private val cameraLauncher = registerForActivityResult(
         ActivityResultContracts.TakePicture()
     ) { success ->
+        if (nativeCameraForNawak) {
+            nativeCameraForNawak = false
+            val uri = cameraPhotoUri
+            if (success && uri != null) {
+                Thread {
+                    try {
+                        val rawBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        if (rawBytes != null && rawBytes.isNotEmpty()) {
+                            val bmp = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+                            val outBytes = if (bmp != null) {
+                                val maxSide = 1280
+                                val scale = minOf(1f, maxSide.toFloat() / maxOf(bmp.width, bmp.height).toFloat())
+                                val scaled = if (scale < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true) else bmp
+                                val bos = ByteArrayOutputStream()
+                                scaled.compress(Bitmap.CompressFormat.JPEG, 82, bos)
+                                if (scaled !== bmp) scaled.recycle()
+                                bmp.recycle()
+                                bos.toByteArray()
+                            } else rawBytes
+                            val b64 = Base64.encodeToString(outBytes, Base64.NO_WRAP)
+                            val dataUrl = "data:image/jpeg;base64,$b64"
+                            val fname = "Kamera_${System.currentTimeMillis()}.jpg"
+                            val qUrl = JSONObject.quote(dataUrl)
+                            val qName = JSONObject.quote(fname)
+                            runOnUiThread {
+                                webView.evaluateJavascript("window.onNawakNativePhoto && window.onNawakNativePhoto($qUrl, $qName);", null)
+                            }
+                        }
+                    } catch (_: Exception) {
+                        runOnUiThread {
+                            webView.evaluateJavascript("window.onNawakNativePhotoError && window.onNawakNativePhotoError('Gagal membaca hasil foto.');", null)
+                        }
+                    }
+                }.start()
+            }
+            return@registerForActivityResult
+        }
         val res = if (success && cameraPhotoUri != null) arrayOf(cameraPhotoUri!!) else null
         filePathCallback?.onReceiveValue(res)
         filePathCallback = null
+    }
+
+    private val drivePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri = result.data?.data ?: return@registerForActivityResult
+            Thread {
+                try {
+                    val mime = contentResolver.getType(uri) ?: "application/octet-stream"
+                    var fname = "File_GoogleDrive"
+                    contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) fname = c.getString(0) ?: fname
+                    }
+                    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+                    if (bytes.size > 6 * 1024 * 1024) {
+                        runOnUiThread {
+                            webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(false, '', '', 'Ukuran file melebihi batas 6 MB.');", null)
+                        }
+                        return@Thread
+                    }
+                    val isText = mime.startsWith("text/") || fname.endsWith(".txt", true) || fname.endsWith(".csv", true) || fname.endsWith(".md", true) || fname.endsWith(".json", true)
+                    val payload = if (isText) String(bytes, Charsets.UTF_8) else Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    val qName = JSONObject.quote(fname)
+                    val qMime = JSONObject.quote(mime)
+                    val qPayload = JSONObject.quote(payload)
+                    runOnUiThread {
+                        webView.evaluateJavascript("window.onNawakDriveFile && window.onNawakDriveFile($qName, $qMime, $qPayload, ${!isText});", null)
+                    }
+                } catch (e: Exception) {
+                    val qErr = JSONObject.quote(e.message ?: "Gagal membaca file dari Drive.")
+                    runOnUiThread {
+                        webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(false, '', '', $qErr);", null)
+                    }
+                }
+            }.start()
+        }
     }
 
 
@@ -191,6 +279,74 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class AndroidBridge {
+        @JavascriptInterface
+        fun openDirectCamera(): Boolean {
+            return try {
+                nativeCameraForNawak = true
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    runOnUiThread { launchDirectCamera() }
+                } else {
+                    runOnUiThread { cameraPermLauncher.launch(Manifest.permission.CAMERA) }
+                }
+                true
+            } catch (_: Exception) {
+                nativeCameraForNawak = false
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun openGoogleDrivePicker(): Boolean {
+            return try {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                }
+                runOnUiThread { drivePickerLauncher.launch(intent) }
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun fetchGoogleDriveLink(rawUrl: String): Boolean {
+            Thread {
+                try {
+                    val conn = (URL(rawUrl).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = true
+                        connectTimeout = 12000
+                        readTimeout = 15000
+                        setRequestProperty("User-Agent", "Mozilla/5.0 WargaKITA/1.15")
+                    }
+                    val code = conn.responseCode
+                    val ct = (conn.contentType ?: "").lowercase()
+                    val bytes = (if (code in 200..299) conn.inputStream else conn.errorStream)?.use { it.readBytes() } ?: ByteArray(0)
+                    conn.disconnect()
+                    if (code !in 200..299) {
+                        val qErr = JSONObject.quote("Gagal membuka link (HTTP $code). Pastikan akses file diatur ke 'Siapa saja yang memiliki link'.")
+                        runOnUiThread { webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(false, '', '', $qErr);", null) }
+                        return@Thread
+                    }
+                    val txt = String(bytes, Charsets.UTF_8)
+                    if (ct.contains("text/html") && (txt.contains("accounts.google.com") || txt.contains("ServiceLogin"))) {
+                        val qErr = JSONObject.quote("File Google Drive masih terkunci (Privat). Ubah akses ke 'Siapa saja yang memiliki link' atau pilih lewat Aplikasi Drive HP.")
+                        runOnUiThread { webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(false, '', '', $qErr);", null) }
+                        return@Thread
+                    }
+                    val trimmed = if (txt.length > 25000) txt.substring(0, 25000) + "\n...[dipotong]" else txt
+                    val qTxt = JSONObject.quote(trimmed)
+                    val qTitle = JSONObject.quote("Dokumen_Google_Drive.txt")
+                    runOnUiThread { webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(true, $qTitle, $qTxt, '');", null) }
+                } catch (e: Exception) {
+                    val qErr = JSONObject.quote(e.message ?: "Gagal mengunduh dari link Google Drive.")
+                    runOnUiThread { webView.evaluateJavascript("window.onNawakDriveLinkResult && window.onNawakDriveLinkResult(false, '', '', $qErr);", null) }
+                }
+            }.start()
+            return true
+        }
+
         @JavascriptInterface
         fun startVoiceInput(): Boolean {
             return try {
@@ -241,13 +397,17 @@ class MainActivity : ComponentActivity() {
             return try {
                 if (Build.VERSION.SDK_INT >= 31) {
                     val isDark = isDeviceDarkMode()
-                    val accent = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_300 else android.R.color.system_accent1_600)
-                    val accentBg = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_700 else android.R.color.system_accent1_600)
-                    val accentSoft = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_900 else android.R.color.system_accent1_50)
-                    val bgApp = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral1_900 else android.R.color.system_neutral1_50)
-                    val bgCard = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral1_800 else android.R.color.white)
+                    val accent = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_200 else android.R.color.system_accent1_700)
+                    val accentBg = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_600 else android.R.color.system_accent1_600)
+                    val accentSoft = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_900 else android.R.color.system_accent1_100)
+                    val accentSoftText = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent1_100 else android.R.color.system_accent1_800)
+                    val bgApp = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral2_900 else android.R.color.system_neutral2_50)
+                    val bgCard = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral2_800 else android.R.color.white)
+                    val bgSurface = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_accent2_900 else android.R.color.system_neutral2_100)
+                    val borderCol = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral2_700 else android.R.color.system_neutral2_200)
+                    val mutedText = ContextCompat.getColor(this@MainActivity, if (isDark) android.R.color.system_neutral2_300 else android.R.color.system_neutral2_600)
                     fun hex(c: Int) = String.format("#%06X", 0xFFFFFF and c)
-                    "{\"supported\":true,\"isDark\":$isDark,\"accent\":\"${hex(accentBg)}\",\"accentText\":\"${hex(accent)}\",\"accentSoft\":\"${hex(accentSoft)}\",\"bgApp\":\"${hex(bgApp)}\",\"bgCard\":\"${hex(bgCard)}\"}"
+                    "{\"supported\":true,\"isDark\":$isDark,\"accent\":\"${hex(accentBg)}\",\"accentText\":\"${hex(accent)}\",\"accentSoft\":\"${hex(accentSoft)}\",\"accentSoftText\":\"${hex(accentSoftText)}\",\"bgApp\":\"${hex(bgApp)}\",\"bgCard\":\"${hex(bgCard)}\",\"bgSurface\":\"${hex(bgSurface)}\",\"border\":\"${hex(borderCol)}\",\"muted\":\"${hex(mutedText)}\"}"
                 } else "{}"
             } catch (_: Exception) { "{}" }
         }
@@ -617,16 +777,21 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    private var lastNightModeMask: Int = -1
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (::webView.isInitialized) {
+        val curNight = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        if (lastNightModeMask != -1 && curNight != lastNightModeMask && ::webView.isInitialized) {
             webView.evaluateJavascript("window.wkOnDeviceThemeChange && window.wkOnDeviceThemeChange()", null)
         }
+        lastNightModeMask = curNight
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lastNightModeMask = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         try { createNotificationChannel() } catch (_: Exception) {}
         try {
             tts = TextToSpeech(this) { status ->

@@ -1,6 +1,29 @@
+## [1.16.0] — 2026-11-24
+
+### Paket B: Optimasi Kesehatan Aplikasi + Feedback Suara & Aksi Cepat NawakAI
+- **Optimasi Kesehatan Aplikasi:**
+  - *In-Flight Lock* (`__wkLoadInFlight`) pada `loadAllData()` untuk mencegah permintaan ganda ke Supabase saat refresh cepat.
+  - Banner deteksi *Offline* & *Auto-Reconnect* otomatis menyinkronkan data begitu koneksi kembali aktif.
+  - Kartu **Kesehatan Sistem WargaKITA** di tab **Lainnya** (khusus Developer / Pak RT / Wakil RT) menampilkan status koneksi, jumlah KK/Warga/Agenda termuat, status Voice TTS, serta tombol **Bersihkan Cache Lokal & Segarkan**.
+- **Feedback Suara (TTS) & Aksi Cepat NawakAI:**
+  - Tombol toggle **Speaker (🔊 / 🔇)** di header popup NawakAI untuk membacakan jawaban otomatis dalam bahasa Indonesia (`AndroidBridge.speakJavanese` / Web Speech API), berhenti instan saat tombol Henti (`□`) atau tutup ditekan.
+  - **Aksi Cepat (*Quick Action Navigation*)**: Perintah suara/teks (*"Buka Cash RT"*, *"Buka Data KK"*, *"Buka Kalender"*) langsung menampilkan tombol navigasi 1 ketuk ke halaman terkait.
+- **Build Android (`v1.16.0`):** Menaikkan `versionCode = 26`, `versionName = "1.16.0"` di `android/app/build.gradle.kts`, `APP_VERSION` di HTML, dan `.github/workflows/build-apk.yml`.
+
+## [1.15.3] — 2026-11-24
+
+### Tema Perangkat Menyeluruh (Full Material You Dynamic Palette)
+- **Palet Warna Perangkat Menyeluruh (`MainActivity.kt` & `index.html`):** Mengambil token warna dinamis Material You Android 12+ secara lengkap (`bgApp`, `bgCard`, `bgSurface`, `border`, `accent`, `accentText`, `accentSoft`, `accentSoftText`, `muted`) dan menerapkannya ke seluruh elemen aplikasi (latar belakang, kartu, `.flat-card-sm`, navigasi bawah, kolom input, *filter pills*, badge, NawakAI popup, tombol FAB, hingga seluruh ikon SVG) dengan spesifisitas CSS penuh (`html.wk-dyn` & `html.wk-dark.wk-dyn`).
+
+### Perbaikan Export, Agenda Ronda & Workflow Rilis
+- **Perbaikan Export Word (`.docx` OOXML Asli):** Mengganti format `.doc` HTML dengan generator `.docx` murni (`buildValidDocxBytes`) agar bebas error *file rusak* di Word/Docs Android.
+- **Filter Status Warga & Pemisahan Warga Kontrak:** Menambahkan centang filter status warga (*Permanen, Kontrak, Kost, Janda, Pindah Domisili, Meninggal Dunia*) di menu Export NawakAI, memisahkan **Warga Kontrak** ke bagian paling bawah tabel di semua format export, serta menyelaraskan footer **PDF** dengan tata letak 7 kartu KPI milik **PNG**.
+- **Perbaikan Bug Versi Kembali ke `v1.15.1`:** Memperbaiki seleksi ZIP pada `.github/workflows/build-apk.yml` dari `ls -t` (yang terpengaruh waktu checkout git) ke pencocokan versi eksplisit + `sort -V | tail -n1`, dan menaikkan versi ke **`v1.15.3` (`versionCode = 25`)**.
+
 ## [1.15.2] — 2026-11-23
 
-### Perbaikan Crash Saat Install Ulang & Peningkatan Export
+### Perbaikan Login, Crash Startup & Peningkatan Export
+- **Perbaikan Login (`ev is not defined`):** Memperbaiki kondisi render tombol `+ Kegiatan` pada header Kalender Kegiatan yang sebelumnya ikut memakai variabel loop `ev._isRonda`, sehingga login dan render Dashboard berjalan lancar tanpa error.
 - **Perbaikan Crash Startup (`MainActivity.kt`):** Memindahkan pemanggilan `requestInitialPermissions()` ke setelah inisialisasi `webView` serta menambahkan pengaman `evalJsSafe()` (`::webView.isInitialized`) pada seluruh *callback* izin kalender dan `SpeechRecognizer` agar aplikasi tidak pernah mengalami `UninitializedPropertyAccessException` saat baru diinstal ulang.
 - **Export Word `.docx` Asli:** Mengganti format `.doc` HTML dengan generator `.docx` OOXML asli (`buildValidDocxBytes`) agar terbuka mulus di Word, Google Docs, dan WPS Office Android.
 - **Filter Status Warga & Pemisahan Warga Kontrak:** Menambahkan filter status (*Permanen, Kontrak, Kost, Janda, Pindah Domisili, Meninggal Dunia*) pada menu export NawakAI serta memisahkan **Warga Kontrak** ke bagian paling bawah tabel di semua format (**PNG, Excel, `.docx`, PDF**).

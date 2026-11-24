@@ -215,6 +215,16 @@
       will-change: transform, opacity;
       transform-origin: center center;
     }
+        @keyframes nawakMenuPop {
+      0% { opacity: 0; transform: translate3d(0, 10px, 0) scale(0.92); }
+      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+    #nawakChatScroll { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+    .nawak-attach-popover {
+      animation: nawakMenuPop 160ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      transform-origin: bottom left;
+      will-change: transform, opacity;
+    }
     .nawak-pop-out {
       animation: nawakAndroidClose 170ms cubic-bezier(0.4, 0, 1, 1) forwards;
       will-change: transform, opacity;
@@ -586,7 +596,7 @@ function saveProfileExtra(uid, obj) {
   try { localStorage.setItem("wk_profile_extra_" + uid, JSON.stringify(obj)); } catch (_) {}
 }
 
-const APP_VERSION = "v1.15.2";
+const APP_VERSION = "v1.16.0";
 const GITHUB_REPO_URL = "https://github.com/itsmeferry/WargaKITA-15";
 const GITHUB_RELEASE_URL = "https://github.com/itsmeferry/WargaKITA-15/releases/latest";
 const GITHUB_API_LATEST_URL = "https://api.github.com/repos/itsmeferry/WargaKITA-15/releases/latest";
@@ -922,7 +932,11 @@ function greetingText() {
 
 function applyDeviceDynamicPalette(enable) {
   let stEl = document.getElementById("wkDynamicPaletteStyle");
-  if (!enable) { if (stEl) stEl.remove(); return; }
+  if (!enable) {
+    document.documentElement.classList.remove("wk-dyn");
+    if (stEl) stEl.remove();
+    return;
+  }
   let pal = null;
   try {
     if (window.AndroidBridge && typeof window.AndroidBridge.getDevicePaletteJson === "function") {
@@ -930,22 +944,124 @@ function applyDeviceDynamicPalette(enable) {
       if (parsed && parsed.supported && parsed.accent) pal = parsed;
     }
   } catch (_) {}
-  if (!pal) { if (stEl) stEl.remove(); return; }
+  if (!pal) {
+    document.documentElement.classList.remove("wk-dyn");
+    if (stEl) stEl.remove();
+    return;
+  }
+  document.documentElement.classList.add("wk-dyn");
+  const bgSurface = pal.bgSurface || pal.bgApp;
+  const borderCol = pal.border || (pal.isDark ? "#334155" : "#e2e8f0");
+  const softText = pal.accentSoftText || pal.accentText;
+  const mutedCol = pal.muted || (pal.isDark ? "#cbd5e1" : "#475569");
   if (!stEl) {
     stEl = document.createElement("style");
     stEl.id = "wkDynamicPaletteStyle";
     document.head.appendChild(stEl);
   }
   stEl.textContent = `
-    :root { --accent: ${pal.accent}; --accent-soft: ${pal.accentSoft}; --bg-app: ${pal.bgApp}; --bg-card: ${pal.bgCard}; }
-    body, .app-shell, .scroll-area { background-color: ${pal.bgApp} !important; }
-    .flat-card, .bg-white, nav { background-color: ${pal.bgCard} !important; }
-    html.wk-dark .bg-slate-50, html.wk-dark .bg-slate-100, html.wk-dark [class*="bg-[#f8fafc]"] { background-color: ${pal.bgApp} !important; }
-    .btn-accent, .fab-btn, [class*="bg-[#1d4ed8]"] { background-color: ${pal.accent} !important; border-color: ${pal.accent} !important; color: #ffffff !important; }
-    [class*="text-[#1d4ed8]"], .nav-item.active { color: ${pal.accentText} !important; }
-    [class*="bg-[#eff6ff]"], [class*="bg-[#dbeafe]"], [class*="bg-blue-50"] { background-color: ${pal.accentSoft} !important; color: ${pal.accentText} !important; }
-    [class*="border-[#1d4ed8]"], .border-blue-200, .border-blue-300 { border-color: ${pal.accentText} !important; }
-    .nawak-float-btn rect { fill: ${pal.accent} !important; stroke: ${pal.accentText} !important; }
+    html.wk-dyn, html.wk-dark.wk-dyn {
+      --color-bg: ${pal.bgApp} !important;
+      --color-surface: ${pal.bgCard} !important;
+      --color-border: ${borderCol} !important;
+      --color-accent: ${pal.accent} !important;
+    }
+    html.wk-dyn body, html.wk-dark.wk-dyn body,
+    html.wk-dyn .app-shell, html.wk-dark.wk-dyn .app-shell,
+    html.wk-dyn .scroll-area, html.wk-dark.wk-dyn .scroll-area {
+      background-color: ${pal.bgApp} !important;
+    }
+    html.wk-dyn .flat-card, html.wk-dark.wk-dyn .flat-card,
+    html.wk-dyn .flat-card-sm, html.wk-dark.wk-dyn .flat-card-sm,
+    html.wk-dyn .bg-white, html.wk-dark.wk-dyn .bg-white,
+    html.wk-dyn .bg-\[\#ffffff\], html.wk-dark.wk-dyn .bg-\[\#ffffff\],
+    html.wk-dyn nav, html.wk-dark.wk-dyn nav {
+      background-color: ${pal.bgCard} !important;
+      border-color: ${borderCol} !important;
+    }
+    html.wk-dyn .bg-slate-50, html.wk-dark.wk-dyn .bg-slate-50,
+    html.wk-dyn .bg-slate-100, html.wk-dark.wk-dyn .bg-slate-100,
+    html.wk-dyn .bg-\[\#f8fafc\], html.wk-dark.wk-dyn .bg-\[\#f8fafc\],
+    html.wk-dyn input, html.wk-dark.wk-dyn input,
+    html.wk-dyn select, html.wk-dark.wk-dyn select,
+    html.wk-dyn textarea, html.wk-dark.wk-dyn textarea {
+      background-color: ${bgSurface} !important;
+      border-color: ${borderCol} !important;
+    }
+    html.wk-dyn .border-slate-200, html.wk-dark.wk-dyn .border-slate-200,
+    html.wk-dyn .border-slate-100, html.wk-dark.wk-dyn .border-slate-100,
+    html.wk-dyn .border-blue-100, html.wk-dark.wk-dyn .border-blue-100,
+    html.wk-dyn .border-blue-200, html.wk-dark.wk-dyn .border-blue-200,
+    html.wk-dyn .border-blue-300, html.wk-dark.wk-dyn .border-blue-300,
+    html.wk-dyn .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+    html.wk-dark.wk-dyn .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+      border-color: ${borderCol} !important;
+    }
+    html.wk-dyn .btn-accent, html.wk-dark.wk-dyn .btn-accent,
+    html.wk-dyn .fab-btn, html.wk-dark.wk-dyn .fab-btn,
+    html.wk-dyn [class*="bg-[#1d4ed8]"], html.wk-dark.wk-dyn [class*="bg-[#1d4ed8]"],
+    html.wk-dyn [class*="bg-[#2563eb]"], html.wk-dark.wk-dyn [class*="bg-[#2563eb]"],
+    html.wk-dyn [class*="bg-[#1e3a8a]"], html.wk-dark.wk-dyn [class*="bg-[#1e3a8a]"],
+    html.wk-dyn [class*="bg-blue-600"], html.wk-dark.wk-dyn [class*="bg-blue-600"],
+    html.wk-dyn [class*="bg-blue-700"], html.wk-dark.wk-dyn [class*="bg-blue-700"],
+    html.wk-dyn #nawakSendBtn, html.wk-dark.wk-dyn #nawakSendBtn {
+      background-color: ${pal.accent} !important;
+      border-color: ${pal.accent} !important;
+      color: #ffffff !important;
+      box-shadow: 0 6px 18px -4px ${pal.accent}66 !important;
+    }
+    html.wk-dyn .bg-\[\#eff6ff\], html.wk-dark.wk-dyn .bg-\[\#eff6ff\],
+    html.wk-dyn .bg-\[\#dbeafe\], html.wk-dark.wk-dyn .bg-\[\#dbeafe\],
+    html.wk-dyn [class*="bg-blue-50"], html.wk-dark.wk-dyn [class*="bg-blue-50"],
+    html.wk-dyn [class*="bg-indigo-50"], html.wk-dark.wk-dyn [class*="bg-indigo-50"],
+    html.wk-dyn .wk-pending-pill, html.wk-dark.wk-dyn .wk-pending-pill {
+      background-color: ${pal.accentSoft} !important;
+      color: ${softText} !important;
+      border-color: ${pal.accent}55 !important;
+    }
+    html.wk-dyn .text-\[\#1d4ed8\], html.wk-dark.wk-dyn .text-\[\#1d4ed8\],
+    html.wk-dyn [class*="text-[#1d4ed8]"], html.wk-dark.wk-dyn [class*="text-[#1d4ed8]"],
+    html.wk-dyn [class*="text-[#3b82f6]"], html.wk-dark.wk-dyn [class*="text-[#3b82f6]"],
+    html.wk-dyn [class*="text-[#60a5fa]"], html.wk-dark.wk-dyn [class*="text-[#60a5fa]"],
+    html.wk-dyn [class*="text-blue-600"], html.wk-dark.wk-dyn [class*="text-blue-600"],
+    html.wk-dyn [class*="text-blue-700"], html.wk-dark.wk-dyn [class*="text-blue-700"],
+    html.wk-dyn [class*="text-indigo-600"], html.wk-dark.wk-dyn [class*="text-indigo-600"],
+    html.wk-dyn [class*="text-indigo-700"], html.wk-dark.wk-dyn [class*="text-indigo-700"],
+    html.wk-dyn .nav-item.active, html.wk-dark.wk-dyn .nav-item.active,
+    html.wk-dyn #nawakVoiceWave, html.wk-dark.wk-dyn #nawakVoiceWave {
+      color: ${pal.accentText} !important;
+    }
+    html.wk-dyn [class*="text-[#1d4ed8]"] svg, html.wk-dark.wk-dyn [class*="text-[#1d4ed8]"] svg,
+    html.wk-dyn .nav-item.active svg, html.wk-dark.wk-dyn .nav-item.active svg {
+      color: ${pal.accentText} !important;
+      stroke: currentColor !important;
+    }
+    html.wk-dyn .text-slate-500, html.wk-dark.wk-dyn .text-slate-500,
+    html.wk-dyn .text-slate-400, html.wk-dark.wk-dyn .text-slate-400 {
+      color: ${mutedCol} !important;
+    }
+    html.wk-dyn .wk-approval-card, html.wk-dark.wk-dyn .wk-approval-card {
+      background-color: ${pal.bgCard} !important;
+      border-color: ${borderCol} !important;
+      border-left: 4px solid ${pal.accent} !important;
+    }
+    html.wk-dyn .nawak-gemini-modal, html.wk-dark.wk-dyn .nawak-gemini-modal {
+      --ng-bg: ${pal.bgCard} !important;
+      --ng-user-bubble: ${bgSurface} !important;
+      --ng-input: ${bgSurface} !important;
+      --ng-border: ${borderCol} !important;
+      --ng-send-bg: ${pal.accent} !important;
+      background-color: ${pal.bgCard} !important;
+      border-color: ${borderCol} !important;
+    }
+    html.wk-dyn .nawak-float-btn, html.wk-dark.wk-dyn .nawak-float-btn {
+      filter: drop-shadow(0 8px 16px ${pal.accent}55) !important;
+    }
+    html.wk-dyn .nawak-float-btn rect, html.wk-dark.wk-dyn .nawak-float-btn rect,
+    html.wk-dyn #nawakTopLauncherIcon rect, html.wk-dark.wk-dyn #nawakTopLauncherIcon rect {
+      fill: ${pal.accent} !important;
+      stroke: ${pal.accentText} !important;
+    }
   `;
 }
 
@@ -969,7 +1085,7 @@ function applyTheme(mode) {
 window.wkOnDeviceThemeChange = function() {
   if ((state.themeMode || "system") === "system") {
     applyTheme("system");
-    if (typeof render === "function") render();
+    if (typeof render === "function" && state.session && state.profile) render();
   }
 };
 if (window.matchMedia) {
@@ -1353,12 +1469,90 @@ if (!window.__wkCalTimer) {
   }, 30000);
 }
 
+
+// ============================================================================
+// App Health, Offline Auto-Reconnect & NawakAI Voice Feedback (v1.16.0)
+// ============================================================================
+let __wkLoadInFlight = null;
+let __wkIsOffline = (typeof navigator !== "undefined" && navigator.onLine === false);
+let __wkNawakTtsOn = localStorage.getItem("wk_nawak_tts_on") !== "0";
+
+function stripForSpeech(txt) {
+  return String(txt || "")
+    .replace(/\*\*|\*|__|`|#/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[•▪▫✅⚠️⏹️📄⏰📍]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 320);
+}
+
+function stopNawakSpeech() {
+  try { if (window.AndroidBridge && window.AndroidBridge.stopSpeak) window.AndroidBridge.stopSpeak(); } catch (_) {}
+  try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (_) {}
+}
+
+function speakNawakReply(rawText) {
+  if (!__wkNawakTtsOn) return;
+  const clean = stripForSpeech(rawText);
+  if (!clean) return;
+  try {
+    if (window.AndroidBridge && typeof window.AndroidBridge.speakJavanese === "function") {
+      window.AndroidBridge.speakJavanese(clean);
+      return;
+    }
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(clean);
+      u.lang = "id-ID";
+      u.rate = 1.03;
+      window.speechSynthesis.speak(u);
+    }
+  } catch (_) {}
+}
+
+function updateOfflineBanner() {
+  let bar = document.getElementById("wkOfflineBanner");
+  if (__wkIsOffline) {
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "wkOfflineBanner";
+      bar.className = "fixed top-0 left-0 right-0 z-50 bg-amber-600 text-white text-[11px] font-semibold px-3 py-1.5 text-center shadow no-print";
+      bar.textContent = "Koneksi internet terputus — Menampilkan data tersimpan terakhir";
+      document.body.appendChild(bar);
+    }
+  } else if (bar) {
+    bar.remove();
+  }
+}
+
+if (!window.__wkNetBound) {
+  window.__wkNetBound = true;
+  window.addEventListener("offline", () => { __wkIsOffline = true; updateOfflineBanner(); });
+  window.addEventListener("online", () => {
+    __wkIsOffline = false;
+    updateOfflineBanner();
+    showToast("Koneksi kembali online — menyinkronkan data...");
+    if (typeof loadAllData === "function") loadAllData(true);
+  });
+}
+
 async function loadAllData(silent) {
+  if (!db || !state.session) return;
+  if (__wkLoadInFlight) return __wkLoadInFlight;
+  __wkLoadInFlight = _loadAllDataCore(silent).finally(() => { __wkLoadInFlight = null; });
+  return __wkLoadInFlight;
+}
+async function _loadAllDataCore(silent) {
   if (!db || !state.session) return;
   if (!silent) { state.loading = true; state.errorMsg = ""; render(); }
 
   try {
     const uid = state.session.user.id;
+    const loadRace = (p, ms = 20000) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("Koneksi Supabase timeout (20 detik).")), ms))
+    ]);
     const [
       { data: cats, error: e1 },
       { data: hhs, error: e2 },
@@ -1371,7 +1565,7 @@ async function loadAllData(silent) {
       { data: events },
       { data: logs },
       { data: yearCash }
-    ] = await Promise.all([
+    ] = await loadRace(Promise.all([
       db.from("fee_categories").select("id,name,default_amount,is_active").order("name"),
       db.from("households").select("id,household_number,head_resident_id,address,residence_status,is_active,notes").order("household_number"),
       db.from("residents").select("id,household_id,nik,full_name,birth_place,birth_date,gender,family_relationship,religion,phone,address_override,is_active,notes").order("full_name"),
@@ -1383,7 +1577,7 @@ async function loadAllData(silent) {
       db.from("community_events").select("*").order("event_date", { ascending: true }),
       db.from("audit_logs").select("id,actor_id,action,entity_type,entity_id,reason,timestamp").eq("actor_id", uid).order("timestamp", { ascending: false }).limit(40),
       db.from("cash_transactions").select("id,transaction_date,transaction_type,amount,approval_status,approved_by,payment_id").neq("status", "voided").gte("transaction_date", `${state.periodYear}-01-01`).lte("transaction_date", `${state.periodYear}-12-31T23:59:59`)
-    ]);
+    ]));
 
     const firstErr = e1 || e2 || e3 || e4 || e5 || e6 || e7;
     if (firstErr) state.errorMsg = "Gagal memuat data: " + firstErr.message;
@@ -1861,7 +2055,7 @@ function renderCalendarWidget() {
         <div class="flex items-center gap-1.5">
           <button id="calPrevBtn" type="button" class="w-7 h-7 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50">&lsaquo;</button>
           <button id="calNextBtn" type="button" class="w-7 h-7 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50">&rsaquo;</button>
-          ${(perms.canEditCalendar) ? `<button id="openAddEventBtn" type="button" class="h-7 px-2.5 rounded-lg btn-accent text-[11px] font-semibold">+ Kegiatan</button>` : ''}
+          ${perms.canEditCalendar ? `<button id="openAddEventBtn" type="button" class="h-7 px-2.5 rounded-lg btn-accent text-[11px] font-semibold">+ Kegiatan</button>` : ''}
         </div>
       </div>
 
@@ -2631,6 +2825,20 @@ function renderLainnya() {
           <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#eff6ff] text-[#1d4ed8] border border-blue-100">${APP_VERSION}</span>
         </div>
         ${state.updateInfo ? `<div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2.5 text-xs"><div class="flex items-center gap-2 font-semibold text-emerald-800 min-w-0">${IC.spark("w-4 h-4 shrink-0")}<span class="truncate">Versi baru <strong>${state.updateInfo.version}</strong> tersedia!</span></div><button id="openUpdateModalBtn" type="button" class="px-3 py-1 rounded-lg bg-emerald-600 text-white font-semibold shrink-0">Lihat</button></div>` : ''}
+        ${["developer_admin", "pak_rt", "wakil_rt"].includes(state.profile?.role || "") ? `
+          <div class="p-3 rounded-xl bg-[#f8fafc] border border-slate-200 space-y-2 text-[11px]">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-slate-700">Kesehatan Sistem WargaKITA</span>
+              <span class="px-2 py-0.5 rounded-full font-bold ${__wkIsOffline ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}">${__wkIsOffline ? 'Offline' : 'Online • Stabil'}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+              <div class="p-1.5 rounded-lg bg-white border border-slate-200"><p class="text-[10px] text-slate-400">KK / Warga</p><p class="font-bold text-slate-800">${(state.households || []).length} / ${(state.residents || []).length}</p></div>
+              <div class="p-1.5 rounded-lg bg-white border border-slate-200"><p class="text-[10px] text-slate-400">Agenda</p><p class="font-bold text-slate-800">${(state.communityEvents || []).length} Item</p></div>
+              <div class="p-1.5 rounded-lg bg-white border border-slate-200"><p class="text-[10px] text-slate-400">Voice TTS</p><p class="font-bold text-[#1d4ed8]">${__wkNawakTtsOn ? 'Aktif' : 'Mati'}</p></div>
+            </div>
+            <button id="wkClearLocalCacheBtn" type="button" class="w-full h-8 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-semibold hover:bg-slate-50">Bersihkan Cache Lokal &amp; Segarkan</button>
+          </div>
+        ` : ''}
         <div class="grid grid-cols-1 gap-2">
           <a href="${state.updateInfo ? state.updateInfo.downloadUrl : GITHUB_RELEASE_URL}" target="_blank" rel="noopener noreferrer" class="w-full h-11 rounded-xl bg-[#1d4ed8] text-white text-xs font-semibold flex items-center justify-center gap-2 hover:bg-blue-800"><span class="inline-flex items-center justify-center gap-1.5">${IC.download("w-4 h-4")} ${tr("dl_apk")}</span> (${state.updateInfo ? state.updateInfo.version : 'GitHub Release'})</a>
           <button id="checkUpdateManualBtn" type="button" class="w-full h-10 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-100"><span class="inline-flex items-center justify-center gap-1.5">${IC.refresh("w-3.5 h-3.5")} ${tr("check_upd")}</span></button>
@@ -3198,6 +3406,35 @@ function generateNawakAIReply(query) {
   const rawOrigQ = String(query || "").trim();
   const sumSnap = getGlobalSummary();
 
+  // [Aksi Cepat NawakAI] Navigasi langsung ke tab aplikasi via suara/teks
+  const navCmd = q.match(/^(?:buka|pindah ke|tampilkan halaman|ke menu|lihat menu)\s+(dashboard|beranda|kalender|data warga|warga|data kk|kk|iuran|cash rt|kas rt|kas|lainnya|pengaturan)/i);
+  if (navCmd) {
+    const dest = navCmd[1].toLowerCase();
+    const tabMap = {
+      dashboard: { tab: "dashboard", label: "Dashboard & Kalender" },
+      beranda: { tab: "dashboard", label: "Dashboard & Kalender" },
+      kalender: { tab: "dashboard", label: "Dashboard & Kalender" },
+      "data warga": { tab: "warga", label: "Data Warga" },
+      warga: { tab: "warga", label: "Data Warga" },
+      "data kk": { tab: "kk", label: "Data KK & Iuran" },
+      kk: { tab: "kk", label: "Data KK & Iuran" },
+      iuran: { tab: "kk", label: "Data KK & Iuran" },
+      "cash rt": { tab: "cash", label: "Cash RT" },
+      "kas rt": { tab: "cash", label: "Cash RT" },
+      kas: { tab: "cash", label: "Cash RT" },
+      lainnya: { tab: "lainnya", label: "Lainnya & Laporan" },
+      pengaturan: { tab: "lainnya", label: "Lainnya & Laporan" }
+    };
+    const tInfo = tabMap[dest];
+    if (tInfo) {
+      return {
+        exactMatch: true,
+        text: `Siap! Ketuk tombol cepat di bawah untuk langsung membuka halaman **${tInfo.label}**:`,
+        quickNav: [{ tab: tInfo.tab, label: `Buka ${tInfo.label}` }]
+      };
+    }
+  }
+
   // [Skill 21] Multi-turn working memory: revisi draft terakhir (ganti jam/tempat/tanggal/bahasa/catatan)
   if (nawakAgentCtx.lastDraft && /^(ganti|ubah|revisi|tambahi?|tambah|koreksi|jadikan|pindahkan)\b/i.test(q) && !/\b(no\.?\s*kk|klasifikasi|tier|status\s+warga)\b/i.test(q)) {
     let updated = nawakAgentCtx.lastDraft;
@@ -3429,7 +3666,7 @@ function generateNawakAIReply(query) {
 
   // [Skill 20] Paket Laporan Rapat RT 15 Lengkap
   if (/\b(rapat\s+rt|bahan\s+rapat|paket\s+laporan|laporan\s+eksekutif)\b/i.test(q) && !/\b(undangan|draft\s+undangan)\b/i.test(q)) {
-    const stats = getWargaExportStats();
+    const stats = buildWargaSummaryStats(getSortedWargaGrouped());
     const compliance = sumSnap.totalKK > 0 ? Math.round((sumSnap.greenCount / sumSnap.totalKK) * 100) : 0;
     const expRows = (state.cashTransactions || []).filter(t => t.transaction_type === "expense" && (t.approval_status || "approved") === "approved");
     const draft = `*BAHAN LAPORAN RAPAT PENGURUS & WARGA RT 15*\n*Periode: ${MONTHS[state.periodMonth - 1]} ${state.periodYear}*\n\n*1. KEPENDUDUKAN*\n• Total KK Terdaftar: ${stats.totalKK} KK (${stats.aktifDomisili} warga aktif domisili)\n• Kepala Keluarga Permanen Aktif: ${stats.permanenKK} KK\n\n*2. KEUANGAN & KAS RT*\n• Pemasukan Approved: ${formatRp(sumSnap.kasIn)}\n• Pengeluaran Approved: ${formatRp(sumSnap.kasOut)} (${expRows.length} transaksi)\n• Saldo Akhir Kas: *${formatRp(sumSnap.kasBalance)}*\n\n*3. KEPATUHAN IURAN*\n• Lunas: ${sumSnap.greenCount} KK (${compliance}%)\n• Sebagian / Belum Bayar: ${sumSnap.yellowCount + sumSnap.redCount} KK\n• Total Sisa Piutang: ${formatRp(sumSnap.totalTunggakan)}\n\n*Disiapkan otomatis oleh NawakAI • WargaKITA RT 15*`;
@@ -4279,10 +4516,12 @@ function buildValidDocxBytes(title, subtitle, header, metaRows, summaryLines, co
   const thRow = `<w:tr>${header.map(h => makeCell(h, { bg: "1E40AF", color: "FFFFFF", bold: true, sz: 18 })).join("")}</w:tr>`;
   const bodyRows = metaRows.map(r => {
     if (r.isSectionDivider) {
-      return `<w:tr>${makeCell(r.dividerLabel || "WARGA KONTRAK", { bg: "FEF3C7", color: "92400E", bold: true, sz: 18, span: header.length })}</w:tr>`;
+      const divBg = r.isKost ? "E0F2FE" : "FEF3C7";
+      const divCol = r.isKost ? "0369A1" : "92400E";
+      return `<w:tr>${makeCell(r.dividerLabel || "BAGIAN KHUSUS", { bg: divBg, color: divCol, bold: true, sz: 18, span: header.length })}</w:tr>`;
     }
-    const bg = r.isMoved ? "FFE4E6" : (r.isKontrak ? "FFFBEB" : (r.isHead ? "F1F5F9" : ""));
-    const col = r.isMoved ? "9F1239" : (r.isKontrak && r.isHead ? "92400E" : "0F172A");
+    const bg = r.isMoved ? "FFE4E6" : (r.isKost ? "F0F9FF" : (r.isKontrak ? "FFFBEB" : (r.isHead ? "F1F5F9" : "")));
+    const col = r.isMoved ? "9F1239" : (r.isKost ? "0369A1" : (r.isKontrak && r.isHead ? "92400E" : "0F172A"));
     const bold = !!(r.isHead || r.isMoved);
     return `<w:tr>${r.cells.map(c => makeCell(c, { bg, color: col, bold, sz: 17 })).join("")}</w:tr>`;
   }).join("");
@@ -4350,7 +4589,6 @@ function buildValidDocxBytes(title, subtitle, header, metaRows, summaryLines, co
 
 async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
   const allSortedKK = getSortedWargaGrouped();
-  const stats = buildWargaSummaryStats(allSortedKK);
   const statusSet = new Set(Array.isArray(selectedStatuses) && selectedStatuses.length ? selectedStatuses : (state.nawakExportStatuses || EXPORT_STATUS_OPTIONS.map(x => x.key)));
   if (!statusSet.size) return showToast("Pilih minimal 1 status warga.");
   const keySet = new Set(Array.isArray(selectedKeys) && selectedKeys.length ? selectedKeys : (state.nawakExportCols || EXPORT_COL_OPTIONS.map(c => c.key)));
@@ -4380,54 +4618,99 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
     const metaRows = [];
     const regularKK = [];
     const kontrakKK = [];
+    const kostKK = [];
+    const expStats = { totalKK: 0, totalWarga: 0, permanenKK: 0, permanenWarga: 0, kontrak: 0, kost: 0, jandaKK: 0, pindah: 0, meninggal: 0 };
+
     allSortedKK.forEach(h => {
       const hasAny = h.members.some(m => matchesStatus(h, m));
       if (!hasAny) return;
-      if (h.residence_status === "Kontrak") kontrakKK.push(h);
+      if (h.residence_status === "Kost") kostKK.push(h);
+      else if (h.residence_status === "Kontrak") kontrakKK.push(h);
       else regularKK.push(h);
     });
+
     let kkNum = 0;
-    const pushKKGroup = (hhList, isKontrakGroup) => {
+    const pushKKGroup = (hhList, groupType) => {
+      const isKontrakGroup = groupType === "kontrak";
+      const isKostGroup = groupType === "kost";
       hhList.forEach(h => {
         const matchedMembers = h.members.filter(m => matchesStatus(h, m));
         if (!matchedMembers.length) return;
+        expStats.totalKK++;
+        if (isJandaHousehold(h, h.members)) expStats.jandaKK++;
         const headMem = (h.head && matchedMembers.some(m => m.id === h.head.id)) ? h.head : matchedMembers[0];
         const otherMems = matchedMembers.filter(m => m.id !== headMem.id);
         const curIdx = kkNum++;
         const stH = getEffectiveResidentStatus(headMem, h, h.head);
-        metaRows.push({ isHead: true, isMoved: stH === "Pindah Domisili", isKontrak: isKontrakGroup, effStatus: stH, cells: activeCols.map(c => pickCell(c.key, true, curIdx, h, headMem)) });
+        if (stH === "Permanen") expStats.permanenKK++;
+        const countMemberStatus = (st) => {
+          expStats.totalWarga++;
+          if (st === "Permanen") expStats.permanenWarga++;
+          else if (st === "Kontrak") expStats.kontrak++;
+          else if (st === "Kost") expStats.kost++;
+          else if (st === "Pindah Domisili") expStats.pindah++;
+          else if (st === "Meninggal Dunia") expStats.meninggal++;
+        };
+        countMemberStatus(stH);
+        metaRows.push({ isHead: true, isMoved: stH === "Pindah Domisili", isKontrak: isKontrakGroup, isKost: isKostGroup, effStatus: stH, cells: activeCols.map(c => pickCell(c.key, true, curIdx, h, headMem)) });
         otherMems.forEach(m => {
           const stM = getEffectiveResidentStatus(m, h, h.head);
-          metaRows.push({ isHead: false, isMoved: stM === "Pindah Domisili", isKontrak: isKontrakGroup, effStatus: stM, cells: activeCols.map(c => pickCell(c.key, false, curIdx, h, m)) });
+          countMemberStatus(stM);
+          metaRows.push({ isHead: false, isMoved: stM === "Pindah Domisili", isKontrak: isKontrakGroup, isKost: isKostGroup, effStatus: stM, cells: activeCols.map(c => pickCell(c.key, false, curIdx, h, m)) });
         });
       });
     };
-    pushKKGroup(regularKK, false);
+
+    pushKKGroup(regularKK, "regular");
     if (kontrakKK.length > 0) {
       metaRows.push({
         isSectionDivider: true,
         isHead: true,
         isMoved: false,
         isKontrak: true,
+        isKost: false,
         dividerLabel: `BAGIAN KHUSUS: WARGA KONTRAK (${kontrakKK.length} KK)`,
-        cells: activeCols.map((_, i) => i === 0 ? `WARGA KONTRAK (${kontrakKK.length} KK)` : "")
+        cells: activeCols.map((_, i) => i === 0 ? `BAGIAN KHUSUS: WARGA KONTRAK (${kontrakKK.length} KK)` : "")
       });
-      pushKKGroup(kontrakKK, true);
+      pushKKGroup(kontrakKK, "kontrak");
     }
-    return { header, metaRows };
+    if (kostKK.length > 0) {
+      const kostCountWarga = kostKK.reduce((acc, h) => acc + h.members.filter(m => matchesStatus(h, m)).length, 0);
+      metaRows.push({
+        isSectionDivider: true,
+        isHead: true,
+        isMoved: false,
+        isKontrak: false,
+        isKost: true,
+        dividerLabel: `BAGIAN KHUSUS: WARGA KOST (${kostCountWarga} Warga)`,
+        cells: activeCols.map((_, i) => i === 0 ? `BAGIAN KHUSUS: WARGA KOST (${kostCountWarga} Warga)` : "")
+      });
+      pushKKGroup(kostKK, "kost");
+    }
+    return { header, metaRows, expStats };
   };
 
-  const { header, metaRows } = buildFilteredRows();
-  const summaryLines = [
-    ["Total KK Terdaftar", `${stats.totalKK} KK`],
-    ["Total Seluruh Jiwa Terdaftar", `${stats.totalWarga} warga`],
-    ["Warga Permanen (Aktif — KK)", `${stats.permanenKK} KK`],
-    ["Warga Kontrak (Aktif)", `${stats.kontrak} warga`],
-    ["Warga Kost (Aktif)", `${stats.kost} warga`],
-    ["Pindah Domisili", `${stats.pindah} warga`],
-    ["Meninggal Dunia", `${stats.meninggal} warga`]
+  const { header, metaRows, expStats: stats } = buildFilteredRows();
+  if (!metaRows.length) return showToast("Tidak ada data warga yang cocok dengan filter status terpilih.");
+
+  const dynamicCards = [
+    { lbl: "Total KK (Export)", val: `${stats.totalKK} KK`, bgHex: "#eff6ff", fgHex: "#1d4ed8", bgRgb: [239, 246, 255], fgRgb: [29, 78, 216] },
+    { lbl: "Total Jiwa (Export)", val: `${stats.totalWarga} Warga`, bgHex: "#f1f5f9", fgHex: "#0f172a", bgRgb: [241, 245, 249], fgRgb: [15, 23, 42] }
   ];
-  const conclusionText = `Kesimpulan: Warga yang benar-benar aktif berdomisili di RT 15 berjumlah ${stats.aktifDomisili} warga (${stats.pctAktif}%), dengan Kepala Keluarga berstatus Permanen aktif sebanyak ${stats.permanenKK} KK (${stats.pctPermKK}% dari ${stats.totalKK} KK).`;
+  if (stats.permanenKK > 0) dynamicCards.push({ lbl: "Permanen (Aktif)", val: `${stats.permanenKK} KK`, bgHex: "#ecfdf5", fgHex: "#047857", bgRgb: [236, 253, 245], fgRgb: [21, 128, 61] });
+  if (stats.kontrak > 0) dynamicCards.push({ lbl: "Kontrak (Aktif)", val: `${stats.kontrak} Warga`, bgHex: "#fffbeb", fgHex: "#b45309", bgRgb: [255, 251, 235], fgRgb: [180, 83, 9] });
+  if (stats.kost > 0) dynamicCards.push({ lbl: "Kost (Aktif)", val: `${stats.kost} Warga`, bgHex: "#e0f2fe", fgHex: "#0369a1", bgRgb: [224, 242, 254], fgRgb: [3, 105, 161] });
+  if (stats.pindah > 0) dynamicCards.push({ lbl: "Pindah Domisili", val: `${stats.pindah} Warga`, bgHex: "#ffe4e6", fgHex: "#be123c", bgRgb: [255, 228, 230], fgRgb: [190, 18, 60] });
+  if (stats.meninggal > 0) dynamicCards.push({ lbl: "Meninggal Dunia", val: `${stats.meninggal} Warga`, bgHex: "#f1f5f9", fgHex: "#334155", bgRgb: [241, 245, 249], fgRgb: [51, 65, 85] });
+
+  const summaryLines = dynamicCards.map(c => [c.lbl, c.val]);
+  const concParts = [];
+  if (stats.permanenKK > 0) concParts.push(`Permanen ${stats.permanenKK} KK (${stats.permanenWarga} warga)`);
+  if (stats.kontrak > 0) concParts.push(`Kontrak ${stats.kontrak} warga`);
+  if (stats.kost > 0) concParts.push(`Kost ${stats.kost} warga`);
+  if (stats.pindah > 0) concParts.push(`Pindah Domisili ${stats.pindah} warga`);
+  if (stats.meninggal > 0) concParts.push(`Meninggal Dunia ${stats.meninggal} warga`);
+  const conclusionText = `Kesimpulan Laporan Export: Total ${stats.totalKK} KK (${stats.totalWarga} warga) yang diekspor — terdiri dari ${concParts.join(", ")}.`;
 
   if (fmt === "excel") {
     if (!window.XLSX) return showToast("Library Excel sedang dimuat.");
@@ -4517,43 +4800,41 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
       const rowH = maxLines > 1 ? 24 : 16;
       if (y + rowH > 568) { doc.addPage(); y = 36; drawHeader(y); y += 18; }
       if (r.isSectionDivider) {
-        doc.setFillColor(254, 243, 199); doc.rect(24, y - 11, 794, rowH, "F");
-        doc.setFont("helvetica", "bold"); doc.setTextColor(146, 64, 14);
-        doc.text(r.dividerLabel || "WARGA KONTRAK", 30, y);
+        if (r.isKost) { doc.setFillColor(224, 242, 254); doc.rect(24, y - 11, 794, rowH, "F"); doc.setFillColor(2, 132, 199); doc.rect(24, y - 11, 4, rowH, "F"); doc.setTextColor(3, 105, 161); }
+        else { doc.setFillColor(254, 243, 199); doc.rect(24, y - 11, 794, rowH, "F"); doc.setFillColor(217, 119, 6); doc.rect(24, y - 11, 4, rowH, "F"); doc.setTextColor(146, 64, 14); }
+        doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
+        doc.text(r.dividerLabel || "BAGIAN KHUSUS", 34, y);
         y += rowH;
         return;
       }
+      // Reset font AFTER any page break / drawHeader so non-head rows on page 2+ are never accidentally bold!
+      doc.setFont("helvetica", (r.isHead || r.isMoved) ? "bold" : "normal"); doc.setFontSize(8);
       if (r.isMoved) { doc.setFillColor(255, 228, 230); doc.rect(24, y - 11, 794, rowH, "F"); doc.setTextColor(159, 18, 57); }
+      else if (r.isKost) { doc.setFillColor(240, 249, 255); doc.rect(24, y - 11, 794, rowH, "F"); doc.setFillColor(14, 165, 233); doc.rect(24, y - 11, 3, rowH, "F"); doc.setTextColor(3, 105, 161); }
       else if (r.isKontrak && r.isHead) { doc.setFillColor(255, 251, 235); doc.rect(24, y - 11, 794, rowH, "F"); doc.setTextColor(146, 64, 14); }
       else if (r.isHead) { doc.setFillColor(241, 245, 249); doc.rect(24, y - 11, 794, rowH, "F"); doc.setTextColor(15, 23, 42); }
       else { doc.setTextColor(51, 65, 85); }
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.4);
+      doc.line(24, y - 11 + rowH, 818, y - 11 + rowH);
       wrappedCols.forEach((lines, i) => doc.text(lines, colX[i], y));
       y += rowH;
     });
 
-    // Summary & Conclusion Footer matching PNG 7-Card KPI Design
+    // Summary & Conclusion Footer strictly based on exported data
     if (y + 148 > 570) { doc.addPage(); y = 36; } else { y += 16; }
-    doc.setFillColor(255, 255, 255); doc.setDrawColor(203, 213, 225); doc.roundedRect(24, y, 794, 132, 6, 6, "FD");
+    doc.setFillColor(255, 255, 255); doc.setDrawColor(203, 213, 225); doc.setLineWidth(0.8); doc.roundedRect(24, y, 794, 132, 6, 6, "FD");
     doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(30, 64, 175);
-    doc.text("RINGKASAN & KESIMPULAN DATA WARGA RT 15", 36, y + 20);
-    const pdfCards = [
-      { lbl: "Total KK", val: `${stats.totalKK} KK`, bg: [241, 245, 249], fg: [29, 78, 216] },
-      { lbl: "Total Jiwa", val: `${stats.totalWarga} Warga`, bg: [241, 245, 249], fg: [15, 23, 42] },
-      { lbl: "Permanen (Aktif)", val: `${stats.permanenKK} KK`, bg: [236, 253, 245], fg: [21, 128, 61] },
-      { lbl: "Kontrak (Aktif)", val: `${stats.kontrak} Warga`, bg: [255, 251, 235], fg: [180, 83, 9] },
-      { lbl: "Kost (Aktif)", val: `${stats.kost} Warga`, bg: [240, 249, 255], fg: [3, 105, 161] },
-      { lbl: "Pindah Domisili", val: `${stats.pindah} Warga`, bg: [255, 241, 242], fg: [190, 18, 60] },
-      { lbl: "Meninggal Dunia", val: `${stats.meninggal} Warga`, bg: [241, 245, 249], fg: [51, 65, 85] }
-    ];
-    const cardW = 104, cardGap = 7;
-    pdfCards.forEach((c, idx) => {
+    doc.text("RINGKASAN & KESIMPULAN DATA EXPORT RT 15", 36, y + 20);
+    const cardGap = 8;
+    const cardW = Math.min(180, Math.floor((770 - cardGap * (dynamicCards.length - 1)) / dynamicCards.length));
+    dynamicCards.forEach((c, idx) => {
       const cx = 36 + idx * (cardW + cardGap);
       const cy = y + 30;
-      doc.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+      doc.setFillColor(c.bgRgb[0], c.bgRgb[1], c.bgRgb[2]);
       doc.roundedRect(cx, cy, cardW, 48, 4, 4, "F");
       doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(100, 116, 139);
       doc.text(c.lbl, cx + 8, cy + 16);
-      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(c.fg[0], c.fg[1], c.fg[2]);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(c.fgRgb[0], c.fgRgb[1], c.fgRgb[2]);
       doc.text(c.val, cx + 8, cy + 36);
     });
     doc.setFont("helvetica", "bold"); doc.setFontSize(8.3);
@@ -4608,7 +4889,7 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
       const cellLines = r.cells.map((cell, i) => wrapCanvasLines(cell, Math.max(60, colW[i] - 12), fnt));
       const maxLines = Math.max(1, ...cellLines.map(l => l.length));
       const rowH = maxLines > 1 ? 52 : 36;
-      return { isHead: r.isHead, isMoved: r.isMoved, isKontrak: r.isKontrak, isSectionDivider: r.isSectionDivider, dividerLabel: r.dividerLabel, fnt, cellLines, rowH };
+      return { isHead: r.isHead, isMoved: r.isMoved, isKontrak: r.isKontrak, isKost: r.isKost, isSectionDivider: r.isSectionDivider, dividerLabel: r.dividerLabel, fnt, cellLines, rowH };
     });
 
     const pages = [];
@@ -4654,24 +4935,23 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
       header.forEach((h, i) => ctx.fillText(String(h), colX[i], y - 2));
       y += 14;
 
-      pRows.forEach(({ isHead, isMoved, isKontrak, isSectionDivider, dividerLabel, fnt, cellLines, rowH }) => {
+      pRows.forEach(({ isHead, isMoved, isKontrak, isKost, isSectionDivider, dividerLabel, fnt, cellLines, rowH }) => {
         if (isSectionDivider) {
-          ctx.fillStyle = "#fef3c7"; ctx.fillRect(0, y, cvsW, rowH);
-          ctx.strokeStyle = "#e2e8f0"; ctx.beginPath(); ctx.moveTo(0, y + rowH); ctx.lineTo(cvsW, y + rowH); ctx.stroke();
-          ctx.font = "bold 14px Inter, sans-serif"; ctx.fillStyle = "#92400e";
-          ctx.fillText(dividerLabel || "WARGA KONTRAK", 32, y + 23);
+          ctx.fillStyle = isKost ? "#e0f2fe" : "#fef3c7"; ctx.fillRect(20, y, cvsW - 40, rowH);
+          ctx.fillStyle = isKost ? "#0284c7" : "#d97706"; ctx.fillRect(20, y, 6, rowH);
+          ctx.strokeStyle = "#cbd5e1"; ctx.beginPath(); ctx.moveTo(20, y + rowH); ctx.lineTo(cvsW - 20, y + rowH); ctx.stroke();
+          ctx.font = "bold 14px Inter, sans-serif"; ctx.fillStyle = isKost ? "#0369a1" : "#92400e";
+          ctx.fillText(dividerLabel || "BAGIAN KHUSUS", 36, y + 23);
           y += rowH;
           return;
         }
-        ctx.fillStyle = isMoved ? "#ffe4e6" : (isKontrak && isHead ? "#fffbeb" : (isHead ? "#eff6ff" : "#ffffff"));
+        ctx.fillStyle = isMoved ? "#ffe4e6" : (isKost ? "#f0f9ff" : (isKontrak && isHead ? "#fffbeb" : (isHead ? "#eff6ff" : "#ffffff")));
         ctx.fillRect(20, y, cvsW - 40, rowH);
-        if (isMoved) {
-          ctx.fillStyle = "#e11d48";
-          ctx.fillRect(20, y, 5, rowH);
-        }
+        if (isMoved) { ctx.fillStyle = "#e11d48"; ctx.fillRect(20, y, 5, rowH); }
+        else if (isKost) { ctx.fillStyle = "#0ea5e9"; ctx.fillRect(20, y, 5, rowH); }
         ctx.strokeStyle = isMoved ? "#fecdd3" : "#e2e8f0"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(20, y + rowH); ctx.lineTo(cvsW - 20, y + rowH); ctx.stroke();
-        ctx.fillStyle = isMoved ? "#9f1239" : (isHead ? "#0f172a" : "#334155");
+        ctx.fillStyle = isMoved ? "#9f1239" : (isKost ? "#0369a1" : (isHead ? "#0f172a" : "#334155"));
         ctx.font = fnt;
         cellLines.forEach((lines, i) => {
           lines.forEach((ln, li) => ctx.fillText(ln, colX[i], y + 22 + li * 18));
@@ -4687,26 +4967,18 @@ async function exportWargaByFormat(fmt, selectedKeys, selectedStatuses) {
         ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1.5;
         ctx.strokeRect(20, y, cvsW - 40, 196);
         ctx.fillStyle = "#1e3a8a"; ctx.font = "bold 18px Inter, sans-serif";
-        ctx.fillText("RINGKASAN & KESIMPULAN DATA WARGA RT 15", 40, y + 32);
+        ctx.fillText("RINGKASAN & KESIMPULAN DATA EXPORT RT 15", 40, y + 32);
 
-        const cards = [
-          { lbl: "Total KK", val: `${stats.totalKK} KK`, bg: "#eff6ff", fg: "#1d4ed8" },
-          { lbl: "Total Jiwa", val: `${stats.totalWarga} Warga`, bg: "#f1f5f9", fg: "#0f172a" },
-          { lbl: "Permanen (Aktif)", val: `${stats.permanenKK} KK`, bg: "#ecfdf5", fg: "#047857" },
-          { lbl: "Kontrak (Aktif)", val: `${stats.kontrak} Warga`, bg: "#fffbeb", fg: "#b45309" },
-          { lbl: "Kost (Aktif)", val: `${stats.kost} Warga`, bg: "#f0f9ff", fg: "#0369a1" },
-          { lbl: "Pindah Domisili", val: `${stats.pindah} Warga`, bg: "#ffe4e6", fg: "#be123c" },
-          { lbl: "Meninggal Dunia", val: `${stats.meninggal} Warga`, bg: "#f1f5f9", fg: "#334155" }
-        ];
-        const cardW = 220, gap = 10;
-        cards.forEach((c, idx) => {
+        const gap = 12;
+        const cardW = Math.min(340, Math.floor((cvsW - 80 - gap * (dynamicCards.length - 1)) / dynamicCards.length));
+        dynamicCards.forEach((c, idx) => {
           const cx = 40 + idx * (cardW + gap);
           const cy = y + 48;
-          ctx.fillStyle = c.bg;
+          ctx.fillStyle = c.bgHex;
           ctx.fillRect(cx, cy, cardW, 68);
           ctx.fillStyle = "#64748b"; ctx.font = "600 12px Inter, sans-serif";
           ctx.fillText(c.lbl, cx + 14, cy + 24);
-          ctx.fillStyle = c.fg; ctx.font = "bold 20px Inter, sans-serif";
+          ctx.fillStyle = c.fgHex; ctx.font = "bold 20px Inter, sans-serif";
           ctx.fillText(c.val, cx + 14, cy + 52);
         });
 
@@ -4765,6 +5037,7 @@ function showNawakAIModal(originX = 0, originY = 120) {
   `;
 
   let isVoiceListening = false;
+  let isAttachMenuOpen = false;
   let activeSpeechRec = null;
   let activeNawakRunId = 0;
   let activeNawakAbort = null;
@@ -4922,6 +5195,11 @@ function showNawakAIModal(originX = 0, originY = 120) {
                     ${m.copyText ? `
                       <div class="w-full p-3 rounded-2xl border text-[12px] leading-relaxed whitespace-pre-line font-sans" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-text);">${String(m.copyText).replace(/</g, "&lt;")}</div>
                     ` : ''}
+                    ${(m.quickNav && m.quickNav.length) ? `
+                      <div class="w-full flex flex-wrap gap-1.5 pt-0.5">
+                        ${m.quickNav.map(qn => `<button type="button" data-nawak-nav="${qn.tab}" class="px-3 py-1.5 rounded-full bg-[#1d4ed8] text-white text-[11px] font-semibold inline-flex items-center gap-1">${qn.label} &rarr;</button>`).join("")}
+                      </div>
+                    ` : ''}
                     ${(m.followUps && m.followUps.length) ? `
                       <div class="w-full flex flex-wrap gap-1.5 pt-0.5">
                         ${m.followUps.map(fq => `<button type="button" data-nawak-q="${fq.q}" class="px-3 py-1.5 rounded-full border text-[11px] font-semibold transition hover:border-[#3b82f6]/50" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-text);">${fq.label}</button>`).join("")}
@@ -4971,11 +5249,37 @@ function showNawakAIModal(originX = 0, originY = 120) {
         const isBusy = msgs.some(m => m.isLoading);
         const waveBars = Array.from({length: 14}, (_, i) => `<span class="nawak-eq-bar" style="height:${[8,12,16,10,18,14,20,16,12,18,14,10,16,9][i]}px; animation-delay:${(i*0.07).toFixed(2)}s;"></span>`).join("");
         return `
+          <div id="nawakAttachPopover" class="nawak-attach-popover ${isAttachMenuOpen ? '' : 'hidden'} absolute bottom-[62px] left-0 z-30 w-[236px] rounded-[26px] p-2.5 border shadow-2xl space-y-1" style="background: var(--ng-input); border-color: var(--ng-border);">
+            <button type="button" id="nawakMenuPhotoBtn" class="w-full flex items-center gap-3.5 px-2 py-2 rounded-2xl text-left transition hover:opacity-85" style="color: var(--ng-text);">
+              <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background: var(--ng-user-bubble);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="16" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path stroke-linecap="round" stroke-linejoin="round" d="m21 15-3.5-3.5a2 2 0 0 0-2.8 0L7 19"/><path stroke-linecap="round" d="M19 16v5M16.5 18.5h5"/></svg>
+              </span>
+              <span class="text-[14px] font-semibold">Foto</span>
+            </button>
+            <button type="button" id="nawakMenuCamBtn" class="w-full flex items-center gap-3.5 px-2 py-2 rounded-2xl text-left transition hover:opacity-85" style="color: var(--ng-text);">
+              <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background: var(--ng-user-bubble);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              </span>
+              <span class="text-[14px] font-semibold">Kamera</span>
+            </button>
+            <button type="button" id="nawakMenuFileBtn" class="w-full flex items-center gap-3.5 px-2 py-2 rounded-2xl text-left transition hover:opacity-85" style="color: var(--ng-text);">
+              <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background: var(--ng-user-bubble);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </span>
+              <span class="text-[14px] font-semibold">File</span>
+            </button>
+            <button type="button" id="nawakMenuDriveBtn" class="w-full flex items-center gap-3.5 px-2 py-2 rounded-2xl text-left transition hover:opacity-85" style="color: var(--ng-text);">
+              <span class="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style="background: var(--ng-user-bubble);">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M8.5 3.5h7l6 10.5-3.5 6h-12l-3.5-6 6-10.5Z"/><path d="M8.5 3.5 15 14M15.5 3.5 9 14M2.5 14h19"/></svg>
+              </span>
+              <span class="text-[14px] font-semibold">Google Drive</span>
+            </button>
+          </div>
+
         <div class="rounded-[28px] px-2 py-1.5 flex items-center gap-1.5 border transition-colors" style="background: var(--ng-input); border-color: ${isVoiceListening ? '#3b82f6' : 'var(--ng-border)'};">
-          <label title="Lampirkan File atau Foto" class="w-9 h-9 rounded-full inline-flex items-center justify-center cursor-pointer hover:opacity-80 shrink-0 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
-            <input id="nawakAttachInput" type="file" class="hidden" />
-          </label>
+          <button id="nawakPlusBtn" type="button" title="Menu Lampiran" class="w-9 h-9 rounded-full inline-flex items-center justify-center hover:opacity-80 shrink-0 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">
+            <svg class="w-5 h-5 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45' : ''}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg>
+          </button>
 
           ${isVoiceListening ? `
             <div class="flex-1 flex items-center justify-center gap-2 px-2 py-1.5 min-w-0">
@@ -5024,13 +5328,70 @@ function showNawakAIModal(originX = 0, originY = 120) {
 
           <div class="nawak-gemini-modal w-full rounded-[28px] border px-4 pt-4 pb-3.5 sm:px-5 flex flex-col h-[min(calc(var(--vvh,100dvh)-84px),680px)] shadow-2xl overflow-hidden box-border" style="border-color: var(--ng-border);">
             <div class="flex items-center justify-between pb-2.5 shrink-0">
-              <button id="nawakClearBtn" type="button" title="Kembali ke Beranda NawakAI" class="w-8 h-8 rounded-full flex items-center justify-center z-10 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.refresh("w-4 h-4")}</button>
+              <div class="flex items-center gap-1.5 z-10">
+                <button id="nawakClearBtn" type="button" title="Kembali ke Beranda NawakAI" class="w-8 h-8 rounded-full flex items-center justify-center transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.refresh("w-4 h-4")}</button>
+                <button id="nawakTtsToggleBtn" type="button" title="${__wkNawakTtsOn ? 'Feedback Suara: Aktif (Ketuk untuk mematikan)' : 'Feedback Suara: Mati (Ketuk untuk mengaktifkan)'}" class="w-8 h-8 rounded-full flex items-center justify-center transition" style="background: ${__wkNawakTtsOn ? 'rgba(29,78,216,0.14)' : 'var(--ng-user-bubble)'}; color: ${__wkNawakTtsOn ? '#1d4ed8' : 'var(--ng-done-step)'};">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${__wkNawakTtsOn ? '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="m23 9-6 6M17 9l6 6"/>'}</svg>
+                </button>
+              </div>
               <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border mt-3" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-done-step);">NawakAI • RT 15</span>
               <button id="closeModalBtn" type="button" title="Tutup Popup" class="w-8 h-8 rounded-full flex items-center justify-center z-10 transition" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.close("w-4 h-4")}</button>
             </div>
 
             <div id="nawakChatScroll" class="flex-1 min-h-0 overflow-y-auto py-2 space-y-3.5">${chatHtml}</div>
-            <div id="nawakComposerArea" class="pt-2 space-y-2 shrink-0">${composerHtml}</div>
+            <div id="nawakComposerArea" class="relative pt-2 space-y-2 shrink-0">${composerHtml}</div>
+            <input id="nawakAttachPhoto" type="file" accept="image/*" class="hidden" />
+            <input id="nawakAttachCamera" type="file" accept="image/*" capture="environment" class="hidden" />
+            <input id="nawakAttachInput" type="file" class="hidden" />
+
+            <!-- Panel Google Drive Smart Reader (Flat UI) -->
+            <div id="nawakDriveSheet" class="hidden absolute inset-0 z-40 rounded-[28px] p-5 flex flex-col justify-center" style="background: var(--ng-bg);">
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2.5">
+                    <span class="w-9 h-9 rounded-xl bg-blue-500/15 text-[#1d4ed8] flex items-center justify-center">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M8.5 3.5h7l6 10.5-3.5 6h-12l-3.5-6 6-10.5Z"/><path d="M8.5 3.5 15 14M15.5 3.5 9 14M2.5 14h19"/></svg>
+                    </span>
+                    <div>
+                      <h4 class="text-sm font-extrabold" style="color: var(--ng-text);">Baca File Google Drive</h4>
+                      <p class="text-[11px]" style="color: var(--ng-done-step);">Pilih dari aplikasi Drive HP atau tempel link</p>
+                    </div>
+                  </div>
+                  <button id="nawakDriveCloseBtn" type="button" class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--ng-user-bubble); color: var(--ng-text);">${IC.close("w-4 h-4")}</button>
+                </div>
+
+                <button id="nawakDriveAppBtn" type="button" class="w-full py-3 px-4 rounded-2xl bg-[#1d4ed8] text-white text-xs font-bold flex items-center justify-center gap-2">
+                  <span>Pilih File Langsung dari Google Drive HP</span>
+                </button>
+
+                <div class="flex items-center gap-2 text-[10px] font-semibold uppercase" style="color: var(--ng-done-step);">
+                  <span class="flex-1 h-px" style="background: var(--ng-border);"></span>
+                  <span>Atau Tempel Link Drive / Docs / Sheets</span>
+                  <span class="flex-1 h-px" style="background: var(--ng-border);"></span>
+                </div>
+
+                <div class="space-y-2">
+                  <input id="nawakDriveUrlInput" type="url" placeholder="https://docs.google.com/... atau drive.google.com/file/d/..." class="w-full h-10 px-3.5 rounded-xl border text-xs focus:outline-none" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-text);" />
+                  <button id="nawakDriveFetchBtn" type="button" class="w-full py-2.5 px-4 rounded-xl border text-xs font-bold" style="background: var(--ng-user-bubble); border-color: var(--ng-border); color: var(--ng-text);">Baca Isi Link Google Drive</button>
+                  <p class="text-[10.5px] leading-relaxed" style="color: var(--ng-done-step);">Tip: Pastikan izin link diatur ke <strong>Siapa saja yang memiliki link</strong> agar NawakAI bisa langsung membaca isi Google Docs, Sheets, atau dokumen teksnya.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Camera Viewfinder Overlay (Web/Browser fallback) -->
+            <div id="nawakCamOverlay" class="hidden absolute inset-0 z-40 rounded-[28px] bg-black flex flex-col overflow-hidden">
+              <div class="flex items-center justify-between px-4 py-3 text-white bg-black/70">
+                <span class="text-xs font-bold">Kamera NawakAI</span>
+                <div class="flex items-center gap-2">
+                  <button id="nawakCamFlipBtn" type="button" class="px-2.5 py-1 rounded-full bg-white/15 text-[11px] font-semibold">Putar</button>
+                  <button id="nawakCamCloseBtn" type="button" class="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">${IC.close("w-4 h-4")}</button>
+                </div>
+              </div>
+              <video id="nawakCamVideo" autoplay playsinline muted class="flex-1 w-full h-full object-cover bg-black"></video>
+              <div class="py-4 bg-black/80 flex items-center justify-center">
+                <button id="nawakCamSnapBtn" type="button" class="w-16 h-16 rounded-full bg-white border-4 border-[#1d4ed8] active:scale-95 transition"></button>
+              </div>
+            </div>
           </div>
         </div>
       `);
@@ -5183,7 +5544,30 @@ function showNawakAIModal(originX = 0, originY = 120) {
         closeModal();
       }
     };
-    document.getElementById("nawakClearBtn").onclick = () => { state.nawakMessages = []; saveNawakHistory(state.profile?.id, []); pendingImportRows = null; pendingAttachment = null; draftInputText = ""; expandedUserMsgs.clear(); renderNawakBody(); };
+    const ttsBtn = document.getElementById("nawakTtsToggleBtn");
+    if (ttsBtn) {
+      ttsBtn.onclick = () => {
+        __wkNawakTtsOn = !__wkNawakTtsOn;
+        try { localStorage.setItem("wk_nawak_tts_on", __wkNawakTtsOn ? "1" : "0"); } catch (_) {}
+        if (!__wkNawakTtsOn) stopNawakSpeech();
+        showToast(__wkNawakTtsOn ? "Feedback suara NawakAI diaktifkan." : "Feedback suara NawakAI dimatikan.");
+        ttsBtn.style.background = __wkNawakTtsOn ? "rgba(29,78,216,0.14)" : "var(--ng-user-bubble)";
+        ttsBtn.style.color = __wkNawakTtsOn ? "#1d4ed8" : "var(--ng-done-step)";
+        ttsBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">${__wkNawakTtsOn ? '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>' : '<path stroke-linecap="round" stroke-linejoin="round" d="M11 5 6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="m23 9-6 6M17 9l6 6"/>'}</svg>`;
+      };
+    }
+    document.querySelectorAll("[data-nawak-nav]").forEach(b => b.onclick = () => {
+      const targetTab = b.getAttribute("data-nawak-nav");
+      stopVoiceIfActive();
+      stopNawakSpeech();
+      closeModal();
+      if (targetTab) {
+        state.activeTab = targetTab;
+        state.selectedHouseholdId = null;
+        render();
+      }
+    });
+    document.getElementById("nawakClearBtn").onclick = () => { stopNawakSpeech(); state.nawakMessages = []; saveNawakHistory(state.profile?.id, []); pendingImportRows = null; pendingAttachment = null; draftInputText = ""; expandedUserMsgs.clear(); renderNawakBody(); };
 
     const parseRawImportText = (raw) => {
       const lines = String(raw || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -5437,12 +5821,14 @@ function showNawakAIModal(originX = 0, originY = 120) {
           isGemini: !!ans.isGemini,
           openBdayCard: !!ans.openBdayCard,
           confirmAction: ans.confirmAction || null,
-          followUps: ans.followUps || null
+          followUps: ans.followUps || null,
+          quickNav: ans.quickNav || null
         };
         saveNawakHistory(state.profile?.id, state.nawakMessages);
         renderNawakBody();
         const sc2 = document.getElementById("nawakChatScroll");
         if (sc2) sc2.scrollTop = sc2.scrollHeight;
+        if (ans && ans.text) speakNawakReply(ans.text);
       });
     };
 
@@ -5488,9 +5874,194 @@ function showNawakAIModal(originX = 0, originY = 120) {
       }
     });
 
-    const attInput = document.getElementById("nawakAttachInput");
-    if (attInput) {
-      attInput.onchange = async (e) => {
+    const setAttachPopoverVisible = (open) => {
+      isAttachMenuOpen = !!open;
+      const pop = document.getElementById("nawakAttachPopover");
+      if (pop) pop.classList.toggle("hidden", !isAttachMenuOpen);
+      const pSvg = document.querySelector("#nawakPlusBtn svg");
+      if (pSvg) pSvg.classList.toggle("rotate-45", isAttachMenuOpen);
+    };
+
+    const plusBtn = document.getElementById("nawakPlusBtn");
+    if (plusBtn) {
+      plusBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        setAttachPopoverVisible(!isAttachMenuOpen);
+      };
+    }
+    const chatScrollEl = document.getElementById("nawakChatScroll");
+    if (chatScrollEl) {
+      chatScrollEl.onclick = () => {
+        if (isAttachMenuOpen) setAttachPopoverVisible(false);
+      };
+    }
+
+    // Native Android Direct Camera & Google Drive Callbacks
+    window.onNawakNativePhoto = (dataUrl, fileName) => {
+      const b64 = String(dataUrl || "").split(",")[1] || "";
+      pendingAttachment = {
+        name: fileName || "Foto_Kamera.jpg",
+        mimeType: "image/jpeg",
+        base64: b64,
+        previewUrl: dataUrl,
+        sizeLabel: `${Math.max(1, Math.round((b64.length * 0.75) / 1024))} KB`
+      };
+      renderNawakBody();
+      showToast("Foto kamera siap dikirim ke NawakAI.");
+    };
+    window.onNawakNativePhotoError = (err) => showToast(err || "Gagal membuka kamera.");
+
+    window.onNawakDriveFile = (name, mime, payload, isBase64) => {
+      const ds = document.getElementById("nawakDriveSheet");
+      if (ds) ds.classList.add("hidden");
+      if (isBase64) {
+        const isImg = String(mime || "").startsWith("image/");
+        pendingAttachment = {
+          name: name || "File_GoogleDrive",
+          mimeType: mime || "application/octet-stream",
+          base64: payload,
+          previewUrl: isImg ? `data:${mime};base64,${payload}` : "",
+          sizeLabel: `${Math.max(1, Math.round((payload.length * 0.75) / 1024))} KB`
+        };
+      } else {
+        pendingAttachment = {
+          name: name || "Dokumen_GoogleDrive.txt",
+          mimeType: "text/plain",
+          textContent: String(payload || "").slice(0, 25000),
+          sizeLabel: `${Math.max(1, Math.round(String(payload || "").length / 1024))} KB`
+        };
+      }
+      renderNawakBody();
+      showToast(`File "${name}" dari Google Drive siap dianalisis.`);
+    };
+    window.onNawakDriveLinkResult = (ok, title, txt, errMsg) => {
+      const fBtn = document.getElementById("nawakDriveFetchBtn");
+      if (fBtn) { fBtn.disabled = false; fBtn.textContent = "Baca Isi Link Google Drive"; }
+      if (!ok) return showToast(errMsg || "Gagal membaca file Google Drive.");
+      const ds = document.getElementById("nawakDriveSheet");
+      if (ds) ds.classList.add("hidden");
+      pendingAttachment = {
+        name: title || "Dokumen_GoogleDrive.txt",
+        mimeType: "text/plain",
+        textContent: String(txt || "").slice(0, 25000),
+        sizeLabel: `${Math.max(1, Math.round(String(txt || "").length / 1024))} KB`
+      };
+      renderNawakBody();
+      showToast("Isi file Google Drive berhasil dibaca!");
+    };
+
+    // Live Web Camera Helper (so browser/Canvas also opens real camera!)
+    let activeCamStream = null;
+    let camFacing = "environment";
+    const closeWebCam = () => {
+      try { if (activeCamStream) { activeCamStream.getTracks().forEach(t => t.stop()); activeCamStream = null; } } catch (_) {}
+      const ov = document.getElementById("nawakCamOverlay");
+      if (ov) ov.classList.add("hidden");
+    };
+    const startWebCam = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const el = document.getElementById("nawakAttachCamera");
+        if (el) el.click();
+        return;
+      }
+      try {
+        closeWebCam();
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: camFacing }, audio: false });
+        activeCamStream = stream;
+        const ov = document.getElementById("nawakCamOverlay");
+        const vid = document.getElementById("nawakCamVideo");
+        if (ov && vid) {
+          vid.srcObject = stream;
+          ov.classList.remove("hidden");
+        }
+      } catch (_) {
+        const el = document.getElementById("nawakAttachCamera");
+        if (el) el.click();
+      }
+    };
+    const camCloseBtn = document.getElementById("nawakCamCloseBtn");
+    if (camCloseBtn) camCloseBtn.onclick = closeWebCam;
+    const camFlipBtn = document.getElementById("nawakCamFlipBtn");
+    if (camFlipBtn) camFlipBtn.onclick = () => { camFacing = camFacing === "environment" ? "user" : "environment"; startWebCam(); };
+    const camSnapBtn = document.getElementById("nawakCamSnapBtn");
+    if (camSnapBtn) camSnapBtn.onclick = () => {
+      const vid = document.getElementById("nawakCamVideo");
+      if (!vid || !vid.videoWidth) return;
+      const cvs = document.createElement("canvas");
+      const maxS = 1280;
+      const sc = Math.min(1, maxS / Math.max(vid.videoWidth, vid.videoHeight));
+      cvs.width = Math.round(vid.videoWidth * sc);
+      cvs.height = Math.round(vid.videoHeight * sc);
+      cvs.getContext("2d").drawImage(vid, 0, 0, cvs.width, cvs.height);
+      const dataUrl = cvs.toDataURL("image/jpeg", 0.85);
+      closeWebCam();
+      window.onNawakNativePhoto(dataUrl, `Kamera_${Date.now()}.jpg`);
+    };
+
+    // Google Drive Smart Reader Sheet handlers
+    const dsEl = document.getElementById("nawakDriveSheet");
+    const dsClose = document.getElementById("nawakDriveCloseBtn");
+    if (dsClose && dsEl) dsClose.onclick = () => dsEl.classList.add("hidden");
+    const dsAppBtn = document.getElementById("nawakDriveAppBtn");
+    if (dsAppBtn) dsAppBtn.onclick = () => {
+      if (dsEl) dsEl.classList.add("hidden");
+      if (window.AndroidBridge && typeof window.AndroidBridge.openGoogleDrivePicker === "function") {
+        window.AndroidBridge.openGoogleDrivePicker();
+      } else {
+        const el = document.getElementById("nawakAttachInput");
+        if (el) el.click();
+      }
+    };
+    const dsFetchBtn = document.getElementById("nawakDriveFetchBtn");
+    if (dsFetchBtn) dsFetchBtn.onclick = async () => {
+      const urlInp = document.getElementById("nawakDriveUrlInput");
+      const rawUrl = String(urlInp ? urlInp.value : "").trim();
+      if (!rawUrl) return showToast("Tempel link Google Drive / Docs / Sheets terlebih dahulu.");
+      let fetchUrl = rawUrl;
+      const docM = rawUrl.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/);
+      const sheetM = rawUrl.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+      const fileM = rawUrl.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/);
+      if (docM) fetchUrl = `https://docs.google.com/document/d/${docM[1]}/export?format=txt`;
+      else if (sheetM) fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetM[1]}/export?format=csv`;
+      else if (fileM) fetchUrl = `https://drive.google.com/uc?export=download&id=${fileM[1]}`;
+      else return showToast("Format link Google Drive tidak dikenali.");
+
+      dsFetchBtn.disabled = true;
+      dsFetchBtn.textContent = "Membaca dari Google Drive...";
+      if (window.AndroidBridge && typeof window.AndroidBridge.fetchGoogleDriveLink === "function") {
+        window.AndroidBridge.fetchGoogleDriveLink(fetchUrl);
+        return;
+      }
+      try {
+        const resp = await fetch(fetchUrl);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const txt = await resp.text();
+        window.onNawakDriveLinkResult(true, sheetM ? "GoogleSheet_Drive.csv" : "GoogleDoc_Drive.txt", txt, "");
+      } catch (_) {
+        window.onNawakDriveLinkResult(false, "", "", "Browser membatasi akses langsung (CORS). Gunakan APK WargaKITA atau pilih file via Aplikasi Drive HP.");
+      }
+    };
+
+    const mPhoto = document.getElementById("nawakMenuPhotoBtn");
+    const mCam = document.getElementById("nawakMenuCamBtn");
+    const mFile = document.getElementById("nawakMenuFileBtn");
+    const mDrive = document.getElementById("nawakMenuDriveBtn");
+    if (mPhoto) mPhoto.onclick = () => { setAttachPopoverVisible(false); const el = document.getElementById("nawakAttachPhoto"); if (el) el.click(); };
+    if (mCam) mCam.onclick = () => {
+      setAttachPopoverVisible(false);
+      if (window.AndroidBridge && typeof window.AndroidBridge.openDirectCamera === "function") {
+        const ok = window.AndroidBridge.openDirectCamera();
+        if (ok) return;
+      }
+      startWebCam();
+    };
+    if (mFile) mFile.onclick = () => { setAttachPopoverVisible(false); const el = document.getElementById("nawakAttachInput"); if (el) el.click(); };
+    if (mDrive) mDrive.onclick = () => {
+      setAttachPopoverVisible(false);
+      if (dsEl) dsEl.classList.remove("hidden");
+    };
+
+    const handleNawakFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const fname = (file.name || "").toLowerCase();
@@ -5607,7 +6178,10 @@ function showNawakAIModal(originX = 0, originY = 120) {
           e.target.value = "";
         }
       };
-    }
+    ["nawakAttachInput", "nawakAttachPhoto", "nawakAttachCamera"].forEach(fid => {
+      const fEl = document.getElementById(fid);
+      if (fEl) fEl.onchange = handleNawakFileChange;
+    });
 
     document.querySelectorAll("[data-nawak-exec]").forEach(btn => btn.onclick = async () => {
       if (!canNawakFull) return showToast("Akses khusus Developer, Pak RT, dan Wakil RT.");
@@ -7389,27 +7963,49 @@ function bindLoginEvents() {
   document.getElementById("loginForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!db) return showToast("Layanan autentikasi belum siap.");
-    let email = document.getElementById("loginEmail").value.trim();
+    const emailRaw = document.getElementById("loginEmail").value.trim();
+    const passVal = passInput ? passInput.value : "";
+    let email = emailRaw;
     if (!email.includes("@")) email = `${email}@wargakita.id`;
-    state.loading = true; render();
+    const btn = document.getElementById("loginSubmitBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Memverifikasi..."; }
+    state.loading = true;
+    const withTimeout = (prom, ms = 15000) => Promise.race([
+      prom,
+      new Promise((_, rej) => setTimeout(() => rej(new Error("Koneksi timeout. Periksa internet Anda.")), ms))
+    ]);
     try {
-      const { data, error } = await db.auth.signInWithPassword({ email, password: passInput.value });
-      if (error) { state.loading = false; showToast("Login gagal: " + error.message); render(); return; }
-      const { data: prof, error: pErr } = await db.from("profiles").select("*").eq("id", data.user.id).single();
-      if (pErr || !prof || !prof.is_active) { await db.auth.signOut(); state.loading = false; showToast("Akun tidak aktif / profil belum terdaftar."); render(); return; }
+      const { data, error } = await withTimeout(db.auth.signInWithPassword({ email, password: passVal }));
+      if (error || !data?.user) {
+        state.loading = false;
+        if (btn) { btn.disabled = false; btn.textContent = "Masuk"; }
+        showToast("Login gagal: " + (error?.message || "Cek username/password."));
+        return;
+      }
+      const { data: prof, error: pErr } = await withTimeout(db.from("profiles").select("*").eq("id", data.user.id).single());
+      if (pErr || !prof || !prof.is_active) {
+        try { await db.auth.signOut(); } catch (_) {}
+        state.loading = false;
+        if (btn) { btn.disabled = false; btn.textContent = "Masuk"; }
+        showToast("Akun tidak aktif atau profil tidak ditemukan.");
+        return;
+      }
       const meta1 = data.user?.user_metadata || {};
       const ext1 = getProfileExtra(prof.id);
       prof.display_name = meta1.display_name || ext1.display_name || prof.display_name;
       if (meta1.phone || meta1.bio) saveProfileExtra(prof.id, { display_name: prof.display_name, phone: meta1.phone || ext1.phone || "", bio: meta1.bio || ext1.bio || "" });
-      state.session = data.session; state.profile = prof; state.nawakMessages = loadNawakHistory(prof.id); state.loading = false;
-      render();
-      try { await logUserActivity("Login", "profiles", prof.id, `${prof.display_name} masuk ke aplikasi`); } catch (_) {}
-      if (prof.must_change_password) { showForceChangePasswordModal(false); return; }
+      state.session = data.session;
+      state.profile = prof;
+      state.nawakMessages = loadNawakHistory(prof.id);
+      state.loading = false;
+      try { logUserActivity("Login", "profiles", prof.id, `${prof.display_name} masuk ke aplikasi`).catch(() => {}); } catch (_) {}
+      if (prof.must_change_password) { render(); showForceChangePasswordModal(false); return; }
       await loadAllData(false);
     } catch (err) {
       state.loading = false;
-      showToast("Gagal login: " + (err?.message || "Cek koneksi internet"));
-      render();
+      const curBtn = document.getElementById("loginSubmitBtn") || btn;
+      if (curBtn) { curBtn.disabled = false; curBtn.textContent = "Masuk"; }
+      showToast("Gagal masuk: " + (err?.message || "Periksa koneksi internet Anda."));
     }
   };
 }
@@ -7706,6 +8302,17 @@ function bindScreenEvents() {
 
   const chkUpdBtn = document.getElementById("checkUpdateManualBtn");
   if (chkUpdBtn) chkUpdBtn.onclick = () => checkAppUpdate(true);
+  const clrCacheBtn = document.getElementById("wkClearLocalCacheBtn");
+  if (clrCacheBtn) clrCacheBtn.onclick = async () => {
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith("wk_nawak_history_") || k.startsWith("wk_nawak_incidents") || k.startsWith("wk_audit_")) localStorage.removeItem(k);
+      });
+      state.nawakMessages = [];
+      showToast("Cache lokal dibersihkan, memuat ulang data...");
+      await loadAllData(false);
+    } catch (_) {}
+  };
   const openUpdBtn = document.getElementById("openUpdateModalBtn");
   if (openUpdBtn) openUpdBtn.onclick = () => showUpdateAvailableModal(state.updateInfo);
 
@@ -7895,21 +8502,37 @@ document.getElementById("toggleWidthBtn").onclick = () => {
 };
 
 window.addEventListener("DOMContentLoaded", async () => {
-  if (db) {
-    const { data } = await db.auth.getSession();
-    if (data && data.session) {
-      const { data: prof } = await db.from("profiles").select("*").eq("id", data.session.user.id).maybeSingle();
-      if (prof && prof.is_active) {
-        const meta0 = data.session.user?.user_metadata || {};
-        const ext0 = getProfileExtra(prof.id);
-        prof.display_name = meta0.display_name || ext0.display_name || prof.display_name;
-        if (meta0.phone || meta0.bio) saveProfileExtra(prof.id, { display_name: prof.display_name, phone: meta0.phone || ext0.phone || "", bio: meta0.bio || ext0.bio || "" });
-        state.session = data.session; state.profile = prof; state.nawakMessages = loadNawakHistory(prof.id);
-        if (prof.must_change_password) { render(); showForceChangePasswordModal(false); return; }
-        await loadAllData(false); return;
+  try { applyTheme(state.themeMode); } catch (_) {}
+  const bootRoot = document.getElementById("screenRoot");
+  if (bootRoot) {
+    bootRoot.innerHTML = `<div class="min-h-full flex flex-col items-center justify-center p-6 gap-3 text-center"><img src="${ICON_SRC}" alt="WargaKITA" class="w-16 h-16 rounded-2xl shadow" /><p class="text-sm font-bold text-slate-800">Memuat WargaKITA...</p><p class="text-xs text-slate-400">Menyiapkan sesi dan data RT 15</p></div>`;
+  }
+  const bootTimeout = (prom, ms = 10000) => Promise.race([
+    prom,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("Boot timeout")), ms))
+  ]);
+  try {
+    if (db) {
+      const { data } = await bootTimeout(db.auth.getSession(), 10000);
+      if (data && data.session) {
+        const { data: prof } = await bootTimeout(db.from("profiles").select("*").eq("id", data.session.user.id).maybeSingle(), 10000);
+        if (prof && prof.is_active) {
+          const meta0 = data.session.user?.user_metadata || {};
+          const ext0 = getProfileExtra(prof.id);
+          prof.display_name = meta0.display_name || ext0.display_name || prof.display_name;
+          if (meta0.phone || meta0.bio) saveProfileExtra(prof.id, { display_name: prof.display_name, phone: meta0.phone || ext0.phone || "", bio: meta0.bio || ext0.bio || "" });
+          state.session = data.session; state.profile = prof; state.nawakMessages = loadNawakHistory(prof.id);
+          if (prof.must_change_password) { render(); showForceChangePasswordModal(false); return; }
+          await loadAllData(false);
+          return;
+        }
       }
     }
+  } catch (err) {
+    state.loading = false;
+    showToast("Sesi dimuat ulang. Silakan masuk kembali.");
   }
+  state.loading = false;
   render();
 });
 
