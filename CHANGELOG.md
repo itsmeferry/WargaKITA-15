@@ -1,3 +1,58 @@
+## [1.17.0] — 2026-11-27 (`versionCode = 30`)
+
+### Desain Android 17 (Material 3 Expressive), Dark Mode & Navigasi Responsif
+- **Redesign Konsisten 5 Tab (*Dashboard, Data Warga, Data KK & Iuran, Cash RT, Lainnya*):** Mengusung bahasa visual **Material 3 Expressive** dengan sudut membulat modern (`rounded-2xl`/`rounded-3xl`), kartu tonal (`.m3-tonal-surface`, `.m3-hero-tonal`), tombol pill responsif di layar mobile (`<= 390px`), **Bottom Navigation Bar** mobile, dan **Desktop Navigation Rail** (`renderDesktopNavRail`) otomatis di layar lebar.
+- **Dark Mode Dinamis & 4 Palet Material You (`MATERIAL_PALETTES`):** Mode tampilan kini mendukung **Terang**, **Gelap**, dan **Otomatis Sistem** dipadukan dengan 4 pilihan palet warna dinamis (*Samudra RT 15*, *Zamrud Asri*, *Violet Senja*, dan *Koral Hangat*) yang langsung menyelaraskan variabel CSS, komponen antarmuka, dan warna grafik.
+- **Pembaruan Grafik Dashboard & Donat Cash RT:** Grafik batang pemasukan 6 bulan terakhir di **Dashboard** dan grafik donat distribusi kas masuk di **Cash RT** kini selaras otomatis dengan token warna (`chartColors`, `barMuted`, `barActive`) dari palet Material You yang sedang aktif.
+- **Perapihan Tab Data Warga, Data KK & Iuran, serta Lainnya:**
+  - **Data Warga:** Tombol sortir ringkas (*Urut KK & Tgl Lahir* vs *Urut Abjad A–Z*) dan filter status/agama yang bersih (*Permanen, Kontrak, Kost, Tidak Aktif di RT 15, Pindah Domisili, Meninggal Dunia*).
+  - **Data KK & Iuran:** Pembaruan header ringkas, bar progres kepatuhan, dan 4 kartu filter cepat (*Wajib Penuh, Janda Rukem, Kost Bebas, Menunggak*).
+  - **Lainnya & Laporan:** Tata letak pemilih mode Terang/Gelap/Otomatis, kartu pilih palet Material You 2 kolom, bahasa `ID / EN / JV`, dan kartu versi aplikasi yang bersih.
+
+### Aturan Iuran Tahunan, Cicilan Lintas Bulan & Tunggakan Manual Beda Tahun (`010_annual_dues_and_manual_arrears.sql`)
+- **Tagihan Tahunan Otomatis (`1×/Tahun per Kategori`):** Kewajiban 4 kategori iuran (*17 Agustus, Keuangan Social, Pembangunan + Fogging, Rukem + Juru Kunci*) dikonsolidasikan menjadi **1 tagihan resmi per tahun per kategori (`period_month = 1`)** via `ensure_period_dues()` & `getAnnualDuesForHouseholdYear()`.
+- **Cicilan Lintas Bulan & Rollover Lintas Tahun (`2026 → 2027`):** Warga dapat mencicil tagihan tahunan di bulan mana pun (misal bayar sebagian di November lalu melunasi sisanya di Desember, sisa tagihan dan nominal terbayar otomatis tersambung). Perpindahan bulan `‹` / `›` dari Desember ke Januari otomatis menaikkan/menurunkan `periodYear`, status kartu menampilkan `LUNAS <Tahun>` agar tidak rancu dengan piutang tahun lalu, dan pelunasan otomatis memotong tahun terlama lebih dulu (*FIFO*).
+- **Input Tunggakan Manual Beda Tahun (`showManualArrearsModal` & `upsert_manual_household_due`):** Petugas berwenang (Developer, Pak RT, Wakil RT, Bendahara RT) dapat mencatat, mengedit, atau menyesuaikan nominal tunggakan historis tahun-tahun sebelumnya (`>= 2020`) per kategori iuran langsung dari Detail KK.
+- **Rincian Piutang Terakumulasi & Pengingat WA:** Total tunggakan per KK kini menjabarkan rincian per tahun dan per kategori secara jelas (termasuk selisih kurang bayar cicilan) beserta tombol pengingat WhatsApp langsung.
+
+### Hierarki Urutan Anggota KK Baku & Keamanan View Database (`009_complaints_realtime_and_kk_ordering.sql`)
+- **Urutan Baku Anggota KK (`sortKKMembers`):** Seluruh tampilan anggota keluarga di Detail KK, Data Warga, NawakAI, dan seluruh format Export (**PDF, Excel, Word `.docx`, PNG**) diseragamkan mengikuti hierarki: `Kepala Keluarga → Istri/Suami → Anak → Menantu → Cucu → Orang Tua Laki-laki/Perempuan → Mertua → Famili Lain → Lainnya`, diurutkan dari tanggal lahir tertua ke termuda (dilengkapi fallback urutan NIK).
+- **Perapihan Database & Keamanan View (`security_invoker = true`):** Normalisasi variasi penulisan hubungan keluarga di `public.residents`, penambahan `public.v_residents_kk_ordered` dengan `security_invoker = true` agar mematuhi RLS (bebas temuan *Security Definer View* di Supabase Security Advisor), serta aktivasi Supabase Realtime untuk tabel inti.
+
+### Notifikasi Lingkungan Real-Time WebSocket & Kontrol Siaran Info Warga (`server.ts`)
+- **Server Real-Time WebSocket (`/ws` & `/api/notifications/*`):** Menambahkan server Node.js/Express + `ws` di `server.ts` yang menyiarkan pengumuman **Info Ronda, Kerja Bakti, Agenda Warga, Pembayaran Iuran, dan Pengumuman RT** secara langsung ke semua perangkat yang terhubung disertai indikator jumlah perangkat aktif (`Live WS • N aktif`).
+- **Pemisahan Notifikasi Info Warga vs Approval Kas:** Pusat Notifikasi memisahkan tab **Info Warga** (hanya info lingkungan yang relevan, tidak lagi tercampur spam *pending approval*) dengan tab **Approval Kas**.
+- **Pusat Siaran Info Terbaru (`showBroadcastCenterModal`) & Kartu Ulang Tahun Khusus:** Tombol **Siarkan Info Baru** beserta 4 kategori *template otomatis* yang dapat diedit sebelum dikirim, serta hak edit **Kartu Ucapan Ulang Tahun**, kini dibatasi khusus untuk **Developer, Pak RT, dan Wakil RT**.
+
+### Laporan Kas Bulanan & Per Petugas PDF Detail (`buildMonthlyCashOfficerReport`)
+- **Otomatis Sesuai Akun Bendahara Login:** Saat membuka **Laporan Kas Bulanan & Per Petugas**, cakupan petugas otomatis terpilih dan diarahkan sesuai akun yang sedang login (termasuk 4 Bendahara: *Novan Hermawan, Ahmad Abin, A. Teguh Purwanto, Jodik Purwanto*, serta Pak RT, Wakil RT, Sekretaris, dan Developer), serta menghapus teks label `"1x klik"` yang tidak perlu.
+- **Perbandingan Month-over-Month (MoM) & Rincian Warga Terbayar:** Menampilkan perbandingan pemasukan, pengeluaran, dan surplus bersih **Bulan Ini vs Bulan Sebelumnya**, lengkap dengan rekap per kategori dan daftar warga yang telah membayar per petugas dalam modal dan ekspor **PDF siap cetak**.
+
+### Panel Developer: 14 Hak Akses Granular & Sinkronisasi RLS
+- **Ekspansi Izin Granular (`PERM_DEFS` & `010`):** Menambah 4 izin baru di menu **Kelola User Login** sehingga menjadi **14 centang hak akses granular** (`canViewWarga`, `canAddWarga`, `canEditWarga`, `canDeleteWarga`, `canPay`, `canCash`, `canApprove`, `canEditOpening`, `canEditCalendar`, `canBroadcastInfo`, `canEditBirthdayCard`, `canManageManualArrears`, `canExportReports`, `canUnmaskNik`), tersinkronisasi penuh dengan fungsi `public.user_has_permission()` dan RLS PostgreSQL.
+
+### Pembaruan Sistem Update Sub-APK (`Version Code`), Popup Dashboard & Perbaikan UI (`versionCode = 30`)
+- **Identifikasi & Rilis Sub-APK Berbasis `Version Code` (`v1.17.0 (Version Code: 30)`):**
+  - Menampilkan badge lengkap **`v1.17.0 (Version Code: 30)`** di tab **Lainnya** dan dialog pembaruan aplikasi via `AndroidBridge.getVersionCode()` & `APP_VERSION_CODE`.
+  - GitHub Release `v1.17.0` kini mendukung multi aset sub-APK bernomor (`WargaKITA-RT15-v1.17.0-VersionCode-30.apk`, `VersionCode-31.apk`, dst.). `checkAppUpdate()` & `UpdateCheckReceiver.kt` memindai seluruh aset `.apk` dan otomatis memilih **Version Code tertinggi**, serta mengarahkan **semua versi lama** (`v1.15.x`, `v1.16.x`, maupun `v1.17.0` build awal) ke rilis terbaru.
+- **Popup Update Otomatis di Dashboard & Notifikasi Latar Belakang:**
+  - Saat petugas membuka aplikasi dan belum memakai build terbaru, popup **Pembaruan Aplikasi Tersedia** langsung tampil otomatis di **Dashboard** beserta daftar lengkap **"Apa yang Baru"**, progress bar unduhan native in-app, dan tombol **Unduh & Pasang Sekarang**.
+  - `UpdateCheckReceiver.kt` berjalan periodik tiap **30 menit** (termasuk pasca reboot & `MY_PACKAGE_REPLACED`) sehingga pengguna yang belum membuka aplikasi tetap menerima notifikasi Android saat ada pembaruan.
+- **Perbaikan 3 Bug Antarmuka Penting:**
+  - **Anti Auto-Scroll ke Atas Saat Gulir ke Bawah:** Mempertahankan `scrollTop` `#scrollArea` dan fokus ketik saat `render()` dipicu sinkronisasi latar belakang/Realtime, menunda *silent render* saat jari menyentuh layar, menambahkan `overscroll-behavior-y: contain`, serta membatasi auto-`scrollIntoView`.
+  - **Tombol Back Menutup Dropdown Terbuka Lebih Dulu:** Memperbarui `window.wkHandleBack()` agar tombol Back Android menutup `#wkBlurSelectOverlay`, `#wkConfirmOverlay`, `#qrisFullscreenOverlay`, popover lampiran NawakAI, dan modal aktif terlebih dahulu sebelum kembali ke menu/tab sebelumnya.
+  - **Warna Ikon Reload / Pull-to-Refresh Menyesuaikan Tema:** Menyelaraskan `.ptr-bar` dengan `var(--color-accent)` & `var(--md-on-primary)` di `applyMaterialPaletteCSS` untuk seluruh 4 palet Material You maupun Dark Mode.
+- **Build Android (`v1.17.0` / `versionCode = 30`):** Mempertahankan `versionName = "1.17.0"`, menaikkan `versionCode = 30` di `android/app/build.gradle.kts`, dan memperbarui `.github/workflows/build-apk.yml` untuk menghasilkan aset `WargaKITA-RT15-v1.17.0-VersionCode-30.apk`.
+
+## [1.16.1] — 2026-11-24 (`versionCode = 28`)
+
+### Splash Screen Pembuka Final — Fondasi Kebersamaan (Isometric Lift & Grow Bloom)
+- **Konsep & Tema Fresh Light (`#F8FBFF`):** Dibangun langsung di atas checkpoint stabil `v1.16.0` (`versionCode = 26`) tanpa mengubah atau mengurangi fitur yang sudah ada.
+- **Ikon Utama Hidup (4 Lapisan WebP Transparan Offline-Ready):** Tangan penyangga (`hand`) terangkat dari sudut 3D isometrik sebagai fondasi kokoh, diikuti 3 sosok warga (`center`, `left`, `right`) tumbuh berurutan ke atas tanpa border dan tanpa latar kotak.
+- **6 Chip Fitur Utama Heksagonal 3D (Tanpa Ronda):** *Kas RT* (`#0A58ED`), *Iuran* (`#10B981`), *NawakAI* (`#6366F1`), *Laporan* (`#F59E0B`), *Info RT* (`#14B8A6`), dan *Data Warga* (`#0EA5E9`), mekar serentak dari tengah ikon bersama 2 gelombang *pulse* flat (`#E2F1FD` & `#D8F5EA`).
+- **Wordmark, Loader & Pembersihan Memori:** Menampilkan `WargaKITA 15`, subjudul `RT 15 / RW 03 · Kebonagung`, serta progress bar `#0A58ED` dengan label *"Guyup rukun melayani warga..."*. Tampil tepat **3,4 detik (`3400ms`)**, diikuti *fade-out* halus (`0.48s`), pengembalian `overflow` dokumen, dan penghapusan elemen `#wk-splash-screen` dari DOM (`window.wkHideSplash()`).
+- **Isolasi Penuh & Aksesibilitas:** 100% pure CSS 3D + vanilla JS dengan prefix `.wk-sp-*`, pengaman spesifisitas terhadap tema Material You (`html.wk-dyn`) & mode gelap (`html.wk-dark`), serta dukungan `prefers-reduced-motion`.
+
 ## [1.16.0] — 2026-11-24
 
 ### NawakAI Agent AI Penuh (P1, P2 & P3 Seutuhnya)

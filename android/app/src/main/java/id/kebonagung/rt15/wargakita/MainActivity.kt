@@ -21,6 +21,8 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import android.provider.MediaStore
+import android.provider.Settings
+import java.io.FileOutputStream
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
@@ -123,6 +125,122 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    private var pendingApkDownloadUrl: String? = null
+    private var pendingApkVersion: String? = null
+
+    private val installUnknownAppsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val url = pendingApkDownloadUrl
+        val ver = pendingApkVersion ?: "v1.17.0"
+        if (!url.isNullOrBlank()) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()) {
+                pendingApkDownloadUrl = null
+                pendingApkVersion = null
+                startInAppApkDownload(url, ver)
+            } else {
+                emitApkProgress("permission", 0, 0L, 0L, "Izin pasang APK belum aktif. Aktifkan 'Izinkan dari sumber ini' lalu ketuk lagi.")
+            }
+        }
+    }
+
+    private fun emitApkProgress(status: String, pct: Int, downloaded: Long, total: Long, message: String) {
+        val qs = JSONObject.quote(status)
+        val qm = JSONObject.quote(message)
+        evalJsSafe("window.wkOnApkDownloadProgress && window.wkOnApkDownloadProgress($qs, $pct, $downloaded, $total, $qm);")
+    }
+
+    private fun startInAppApkDownload(apkUrl: String, versionLabel: String) {
+        Thread {
+            var conn: HttpURLConnection? = null
+            try {
+                emitApkProgress("downloading", 2, 0L, 0L, "Menghubungkan ke server unduhan...")
+                var currentUrl = apkUrl
+                var redirects = 0
+                while (redirects < 6) {
+                    val c = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                        instanceFollowRedirects = false
+                        connectTimeout = 15000
+                        readTimeout = 60000
+                        setRequestProperty("User-Agent", "WargaKITA-Android")
+                        setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
+                    }
+                    val code = c.responseCode
+                    if (code in listOf(301, 302, 303, 307, 308)) {
+                        val loc = c.getHeaderField("Location")
+                        c.disconnect()
+                        if (loc.isNullOrBlank()) throw Exception("Redirect unduhan tidak valid.")
+                        currentUrl = URL(URL(currentUrl), loc).toString()
+                        redirects++
+                    } else {
+                        conn = c
+                        break
+                    }
+                }
+                val activeConn = conn ?: throw Exception("Terlalu banyak pengalihan saat mengunduh APK.")
+                val code = activeConn.responseCode
+                if (code !in 200..299) {
+                    throw Exception("Gagal mengunduh APK (HTTP $code).")
+                }
+                val totalBytes = activeConn.getHeaderField("Content-Length")?.toLongOrNull()
+                    ?: activeConn.contentLength.toLong().let { if (it > 0) it else 0L }
+                val outFile = File(cacheDir, "WargaKITA-update.apk")
+                if (outFile.exists()) outFile.delete()
+
+                var downloaded = 0L
+                var lastPct = -1
+                var lastEmitTime = 0L
+                activeConn.inputStream.use { input ->
+                    FileOutputStream(outFile).use { output ->
+                        val buf = ByteArray(16384)
+                        while (true) {
+                            val read = input.read(buf)
+                            if (read == -1) break
+                            output.write(buf, 0, read)
+                            downloaded += read
+                            val now = System.currentTimeMillis()
+                            val pct = if (totalBytes > 0L) {
+                                ((downloaded * 99L) / totalBytes).toInt().coerceIn(3, 99)
+                            } else {
+                                minOf(95, 5 + (downloaded / (300L * 1024L)).toInt() * 3)
+                            }
+                            if (pct != lastPct && (now - lastEmitTime >= 110L || pct - lastPct >= 2)) {
+                                lastPct = pct
+                                lastEmitTime = now
+                                emitApkProgress("downloading", pct, downloaded, totalBytes, "")
+                            }
+                        }
+                        output.flush()
+                    }
+                }
+                activeConn.disconnect()
+                conn = null
+
+                if (!outFile.exists() || outFile.length() < 100_000L) {
+                    throw Exception("Berkas APK tidak lengkap atau bukan paket APK yang valid.")
+                }
+
+                emitApkProgress("installing", 100, downloaded, if (totalBytes > 0L) totalBytes else downloaded, "Unduhan selesai! Membuka pemasang APK...")
+                runOnUiThread {
+                    try {
+                        val apkUri = FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", outFile)
+                        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(apkUri, "application/vnd.android.package-archive")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(installIntent)
+                    } catch (e: Exception) {
+                        emitApkProgress("error", 0, downloaded, totalBytes, e.message ?: "Gagal membuka pemasang APK Android.")
+                    }
+                }
+            } catch (e: Exception) {
+                emitApkProgress("error", 0, 0L, 0L, e.message ?: "Gagal mengunduh pembaruan APK.")
+            } finally {
+                try { conn?.disconnect() } catch (_: Exception) {}
+            }
+        }.start()
     }
 
     private var askedCalPermOnce = false
@@ -279,6 +397,39 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class AndroidBridge {
+        @JavascriptInterface
+        fun getBuildEpochMs(): Long = BuildConfig.BUILD_EPOCH_MS
+
+        @JavascriptInterface
+        fun getVersionCode(): Int = BuildConfig.VERSION_CODE
+
+        @JavascriptInterface
+        fun downloadAndInstallApk(apkUrl: String, versionLabel: String): Boolean {
+            if (apkUrl.isBlank()) {
+                emitApkProgress("error", 0, 0L, 0L, "URL unduhan APK tidak valid.")
+                return false
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+                pendingApkDownloadUrl = apkUrl
+                pendingApkVersion = versionLabel
+                emitApkProgress("permission", 0, 0L, 0L, "Mohon aktifkan izin 'Izinkan dari sumber ini' untuk WargaKITA.")
+                runOnUiThread {
+                    try {
+                        val permIntent = Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:$packageName")
+                        )
+                        installUnknownAppsLauncher.launch(permIntent)
+                    } catch (_: Exception) {
+                        emitApkProgress("error", 0, 0L, 0L, "Aktifkan izin pasang aplikasi tidak dikenal di Pengaturan Android.")
+                    }
+                }
+                return true
+            }
+            startInAppApkDownload(apkUrl, versionLabel)
+            return true
+        }
+
         @JavascriptInterface
         fun openDirectCamera(): Boolean {
             return try {
@@ -738,6 +889,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("open_update", false)) {
+            intent.removeExtra("open_update")
+            evalJsSafe("setTimeout(function(){ window.wkCheckUpdateNow && window.wkCheckUpdateNow(); }, 400);")
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (::webView.isInitialized) {
@@ -791,6 +951,10 @@ class MainActivity : ComponentActivity() {
                     val uri = request?.url ?: return false
                     val url = uri.toString()
                     val scheme = uri.scheme?.lowercase() ?: ""
+                    if (url.lowercase(Locale.ROOT).contains(".apk") && url.startsWith("https://github.com/")) {
+                        AndroidBridge().downloadAndInstallApk(url, "")
+                        return true
+                    }
                     if (scheme in listOf("tel", "whatsapp", "mailto", "sms") ||
                         url.startsWith("https://wa.me/") ||
                         url.startsWith("https://api.whatsapp.com/") ||
@@ -812,6 +976,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     return false
+                }
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    if (intent?.getBooleanExtra("open_update", false) == true) {
+                        intent?.removeExtra("open_update")
+                        evalJsSafe("setTimeout(function(){ window.wkCheckUpdateNow && window.wkCheckUpdateNow(); }, 950);")
+                    }
                 }
             }
             webChromeClient = object : WebChromeClient() {

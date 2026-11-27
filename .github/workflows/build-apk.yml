@@ -12,7 +12,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -20,8 +19,8 @@ jobs:
       - name: Siapkan Sumber Android
         run: |
           rm -rf extracted_repo
-          if [ -f "WargaKITA_GitHub_Backup_v1.16.0.zip" ]; then
-            LATEST_ZIP="WargaKITA_GitHub_Backup_v1.16.0.zip"
+          if [ -f "WargaKITA_GitHub_Backup_v1.17.0.zip" ]; then
+            LATEST_ZIP="WargaKITA_GitHub_Backup_v1.17.0.zip"
           else
             LATEST_ZIP=$(ls -1 WargaKITA_GitHub_Backup*.zip 2>/dev/null | sort -V | tail -n1 || true)
           fi
@@ -65,6 +64,12 @@ jobs:
           WK_KEY_ALIAS: ${{ secrets.WK_KEY_ALIAS || secrets.WK_KEYSTORE_ALIAS }}
           WK_KEY_PASS: ${{ secrets.WK_KEY_PASS || secrets.WK_KEYSTORE_PASS }}
         run: |
+          VER_NAME=$(grep -E 'versionName[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*"(.*)".*/\1/' | tr -d '\r')
+          VER_CODE=$(grep -E 'versionCode[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*([0-9]+).*/\1/' | tr -d '\r')
+          APK_OUT="WargaKITA-RT15-v${VER_NAME}-VersionCode-${VER_CODE}.apk"
+          echo "VER_NAME=${VER_NAME}" >> "$GITHUB_ENV"
+          echo "VER_CODE=${VER_CODE}" >> "$GITHUB_ENV"
+          echo "APK_OUT=${APK_OUT}" >> "$GITHUB_ENV"
           if [ -n "$WK_KEYSTORE_B64" ]; then
             echo "$WK_KEYSTORE_B64" | base64 -d > release.keystore
             export WK_KEYSTORE_PATH="$(pwd)/release.keystore"
@@ -73,31 +78,39 @@ jobs:
               export WK_KEY_ALIAS
             fi
             gradle assembleRelease --no-daemon
-            cp app/build/outputs/apk/release/app-release.apk ../../WargaKITA-RT15-v1.16.0.apk
+            cp app/build/outputs/apk/release/app-release.apk "../../${APK_OUT}"
           else
             gradle assembleDebug --no-daemon
-            cp app/build/outputs/apk/debug/app-debug.apk ../../WargaKITA-RT15-v1.16.0.apk
+            cp app/build/outputs/apk/debug/app-debug.apk "../../${APK_OUT}"
           fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WargaKITA-v1.16.0-apk
-          path: WargaKITA-RT15-v1.16.0.apk
+          name: WargaKITA-v${{ env.VER_NAME }}-VersionCode-${{ env.VER_CODE }}-apk
+          path: ${{ env.APK_OUT }}
 
       - name: Publikasikan ke GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.16.0' }}
-          name: WargaKITA RT 15 (v1.16.0)
-          files: WargaKITA-RT15-v1.16.0.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', env.VER_NAME) }}
+          name: WargaKITA RT 15 (v${{ env.VER_NAME }})
+          files: ${{ env.APK_OUT }}
           make_latest: true
           body: |
-            ## Pembaruan WargaKITA v1.16.0 (versionCode 26)
-            ### NawakAI Agent AI & Voice Command
-            - **UI Baru Flat UI (Popup Messenger + Chatbox Gemini):** Popup mengambang bebas kedip dengan animasi spring Android 60fps, ikon wajik 6 ekspresi NawakAI, layar Beranda grid 2×2, dan grid kolom export 2 kolom.
-            - **Voice Command Native Android & Web (`id-ID`):** Voice inline ala Gemini (`SpeechRecognizer` senyap + 14-bar live RMS waveform tanpa popup Google), dilengkapi tombol Henti Paksa (`□`), jadwal Ronda Desember 2026 lengkap dengan reminder harian 19:00 WIB ke Pak RT, serta sinkronisasi & auto-hapus kalender HP otomatis.
-            - **24 Skill Agentic (6 Domain):** Memori revisi multi-turn, audit klasifikasi & kebersihan data, catat pembayaran via chat/suara, simulasi proyeksi kas, generator pengumuman WA & surat pengantar RT 15 otomatis, jadwal ronda, agenda kalender, log aduan warga, dan paket laporan rapat RT.
-            ### Perbaikan Data & Iuran Tahunan RT 15
-            - **Kepala Keluarga Efektif (Data Janda):** Otomatis menampilkan nama istri aktif di Data KK, Detail KK, Cash RT, NawakAI, dan Export Warga apabila kepala keluarga meninggal dunia.
-            - **Deduplikasi Tagihan Tahunan:** 1 tahun kalender dihitung maksimal 1 tagihan per kategori dan badge Tunggakan hanya tampil untuk piutang lintas tahun (`2025 & 2026`).
+            ## WargaKITA RT 15 — v${{ env.VER_NAME }} (Version Code: ${{ env.VER_CODE }})
+
+            ### Sub-APK Tersedia
+            - **WargaKITA RT-17 v${{ env.VER_NAME }} Version Code: ${{ env.VER_CODE }}** (`${{ env.APK_OUT }}`) — *Build Terbaru*
+            - **WargaKITA RT-17 v1.17.0 Version Code: 29** (`WargaKITA-RT15-v1.17.0.apk`) — *Rilis Awal v1.17.0*
+
+            ### Pembaruan Version Code ${{ env.VER_CODE }} (v${{ env.VER_NAME }})
+            - **Deteksi Update Sub-APK Multi-Build (`Version Code`):** Menampilkan `v1.17.0 (Version Code: 30)` di dalam aplikasi, mengarahkan seluruh versi terdahulu (`v1.15.x`, `v1.16.x`, maupun `v1.17.0` build sebelumnya) ke sub-APK dengan Version Code tertinggi, popup **"Apa yang Baru"** otomatis di Dashboard saat membuka aplikasi, serta notifikasi Android latar belakang setiap 30 menit bagi perangkat yang belum dibuka.
+            - **Anti Auto-Scroll ke Atas Saat Gulir ke Bawah:** Mempertahankan posisi gulir `#scrollArea` dan fokus input ketik saat sinkronisasi *real-time* berjalan di latar belakang.
+            - **Tombol Back Menutup Dropdown Terbuka Lebih Dulu:** Menekan tombol Back Android saat menu pilihan blur terbuka kini menutup dropdown tersebut tanpa berpindah ke menu/tab sebelumnya.
+            - **Warna Ikon Refresh/Reload Mengikuti Tema Aktif:** Indikator *pull-to-refresh* kini selaras otomatis dengan 4 palet Material You (*Samudra, Zamrud Asri, Violet Senja, Koral Hangat*) maupun Mode Gelap.
+
+            ### Fitur Utama v1.17.0
+            - **Desain Android 17 (Material 3 Expressive) & Dark Mode Dinamis:** Redesign 5 tab utama, *Desktop Navigation Rail*, dan 4 palet warna Material You.
+            - **Iuran Tahunan (`010`) & Urutan KK Baku (`009`):** Konsolidasi 1 tagihan/tahun/kategori, cicilan lintas bulan, rollover tahunan (`2026 ↔ 2027`), pelunasan FIFO, dan koreksi tunggakan manual tahun sebelumnya.
+            - **Notifikasi Real-Time WebSocket, Laporan Petugas & 14 Hak Akses:** Siaran Info Warga *real-time* `/ws`, kontrol siaran & kartu ulang tahun khusus pengurus inti, serta unduh & pasang APK langsung di dalam aplikasi.

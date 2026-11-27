@@ -13,11 +13,12 @@ android {
         applicationId = "id.kebonagung.rt15.wargakita"
         minSdk = 23
         targetSdk = 35
-        versionCode = 26
-        versionName = "1.16.0"
+        versionCode = 30
+        versionName = "1.17.0"
 
         buildConfigField("String", "SUPABASE_URL", "\"https://bwufyctxcttqhrepsevw.supabase.co\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"sb_publishable_Sto3oP18p0Jqin_QGSr5Hg_qRUoNMlG\"")
+        buildConfigField("long", "BUILD_EPOCH_MS", "${System.currentTimeMillis()}L")
     }
 
     signingConfigs {
